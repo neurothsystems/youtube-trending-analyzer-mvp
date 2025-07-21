@@ -12,8 +12,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 import redis
-import psycopg2
-from psycopg2.extras import RealDictCursor
+# Removed psycopg2 - using Redis and in-memory storage instead
 import google.generativeai as genai
 
 # Configure logging
@@ -37,30 +36,23 @@ config = Config()
 
 # Initialize services
 redis_client = None
-db_connection = None
 
 try:
     if config.REDIS_URL:
         redis_client = redis.from_url(config.REDIS_URL)
         logger.info("Redis connected successfully")
 except Exception as e:
-    logger.error(f"Redis connection failed: {e}")
+    logger.warning(f"Redis connection failed: {e} - continuing without cache")
 
 try:
     if config.GEMINI_API_KEY:
         genai.configure(api_key=config.GEMINI_API_KEY)
         logger.info("Gemini AI configured successfully")
 except Exception as e:
-    logger.error(f"Gemini AI configuration failed: {e}")
+    logger.warning(f"Gemini AI configuration failed: {e}")
 
-def get_db_connection():
-    """Get database connection"""
-    try:
-        conn = psycopg2.connect(config.DATABASE_URL)
-        return conn
-    except Exception as e:
-        logger.error(f"Database connection failed: {e}")
-        return None
+# In-memory storage for MVP (replace with database in production)
+video_cache = {}
 
 def get_youtube_trending(country: str = 'US', max_results: int = 50) -> List[Dict]:
     """Fetch YouTube trending videos"""
@@ -195,8 +187,8 @@ def health_check():
             'checks': {
                 'youtube_api': {'status': 'healthy' if config.YOUTUBE_API_KEY else 'warning'},
                 'gemini_api': {'status': 'healthy' if config.GEMINI_API_KEY else 'warning'},
-                'redis': {'status': 'healthy' if redis_client else 'warning'},
-                'database': {'status': 'healthy' if config.DATABASE_URL else 'warning'}
+                'redis': {'status': 'healthy' if redis_client else 'info', 'message': 'Optional caching service'},
+                'storage': {'status': 'healthy', 'message': 'In-memory storage active'}
             }
         }
         
