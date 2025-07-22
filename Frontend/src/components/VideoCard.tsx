@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { ExternalLink, Eye, ThumbsUp, MessageCircle, Clock, Award } from 'lucide-react';
-import { TrendingVideo } from '@/types/api';
+import { TrendingVideo } from '../types/api';
 import { 
   formatViews, 
   formatRelativeTime, 
@@ -14,8 +14,9 @@ import {
   truncateText,
   calculatePercentage,
   getYouTubeThumbnail
-} from '@/lib/utils';
-import { cn } from '@/lib/utils';
+,
+  cn
+} from '../lib/utils';
 
 interface VideoCardProps {
   video: TrendingVideo;

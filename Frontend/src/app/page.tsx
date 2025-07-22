@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { Sparkles, Brain, Globe, Zap, TrendingUp, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Header from '@/components/Header';
-import SearchForm from '@/components/SearchForm';
-import ResultsDisplay from '@/components/ResultsDisplay';
-import { TrendingAnalyzerAPI } from '@/lib/api';
-import { SearchFormData, TrendingResponse, TrendingAnalysisError } from '@/types/api';
-import { APP_CONFIG } from '@/lib/constants';
+import Header from '../components/Header';
+import SearchForm from '../components/SearchForm';
+import ResultsDisplay from '../components/ResultsDisplay';
+import { TrendingAnalyzerAPI } from '../lib/api';
+import { SearchFormData, TrendingResponse, TrendingAnalysisError } from '../types/api';
+import { APP_CONFIG } from '../lib/constants';
 
 export default function HomePage() {
   const [results, setResults] = useState<TrendingResponse | null>(null);
