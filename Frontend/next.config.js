@@ -1,21 +1,7 @@
-const path = require('path');
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-
-  // Webpack configuration for path aliases
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': path.resolve(__dirname, './src'),
-      '@/components': path.resolve(__dirname, './src/components'),
-      '@/lib': path.resolve(__dirname, './src/lib'),
-      '@/types': path.resolve(__dirname, './src/types'),
-    };
-    return config;
-  },
   
   // Environment variables available to the browser
   env: {

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Menu, X, Activity, BarChart3, Info } from 'lucide-react';
-import { APP_CONFIG } from 'lib/constants';
+import { APP_CONFIG } from '@/lib/constants';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
