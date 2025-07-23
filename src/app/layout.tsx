@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   description: 'LLM-powered platform for genuine regional YouTube trend analysis',
   keywords: ['youtube', 'trending', 'analysis', 'AI', 'LLM', 'regional', 'video'],
   authors: [{ name: 'YouTube Trending Analyzer Team' }],
-  viewport: 'width=device-width, initial-scale=1',
   robots: 'index, follow',
   openGraph: {
     title: 'YouTube Trending Analyzer MVP',
@@ -27,6 +26,11 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

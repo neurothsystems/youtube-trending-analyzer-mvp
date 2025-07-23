@@ -33,8 +33,9 @@ export interface TrendingResponse {
     total_analyzed: number;
     llm_analyzed: number;
     cache_hit: boolean;
-    trending_feed_matches: number;
-    llm_cost_cents: number;
+    trending_feed_matches?: number;
+    llm_cost_cents?: number;
+    timestamp?: string;
     message?: string;
   };
   error?: string;
