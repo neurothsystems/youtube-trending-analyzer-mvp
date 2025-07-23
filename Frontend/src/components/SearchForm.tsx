@@ -3,9 +3,9 @@
 import { useState, useCallback } from 'react';
 import { Search, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { COUNTRIES, TIMEFRAMES, DEFAULT_FORM_VALUES, EXAMPLE_QUERIES, UI_CONSTANTS } from '@/lib/constants';
-import { validateQuery, debounce } from '@/lib/utils';
-import { SearchFormData, CountryCode, TimeframeOption } from '@/types/api';
+import { COUNTRIES, TIMEFRAMES, DEFAULT_FORM_VALUES, EXAMPLE_QUERIES, UI_CONSTANTS } from '../lib/constants';
+import { validateQuery, debounce } from '../lib/utils';
+import { SearchFormData, CountryCode, TimeframeOption } from '../types/api';
 
 interface SearchFormProps {
   onSearch: (data: SearchFormData) => void;

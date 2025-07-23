@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Clock, BarChart3, Brain, Eye, TrendingUp, Award, Filter, Grid, List } from 'lucide-react';
-import { TrendingResponse } from '@/types/api';
+import { TrendingResponse } from '../types/api';
 import { 
   formatNumber, 
   formatCurrency, 
@@ -10,7 +10,7 @@ import {
   getTimeframeInfo,
   formatRelativeTime,
   cn
-} from '@/lib/utils';
+} from '../lib/utils';
 import VideoCard from './VideoCard';
 
 interface ResultsDisplayProps {
