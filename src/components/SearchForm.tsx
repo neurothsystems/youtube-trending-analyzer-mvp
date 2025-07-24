@@ -6,13 +6,15 @@ import toast from 'react-hot-toast';
 import { COUNTRIES, TIMEFRAMES, DEFAULT_FORM_VALUES, EXAMPLE_QUERIES, UI_CONSTANTS } from 'lib/constants';
 import { validateQuery, debounce } from 'lib/utils';
 import { SearchFormData, CountryCode, TimeframeOption } from 'types/api';
+import CacheControls from './CacheControls';
 
 interface SearchFormProps {
   onSearch: (data: SearchFormData) => void;
   isLoading?: boolean;
+  onCacheCleared?: () => void;
 }
 
-export default function SearchForm({ onSearch, isLoading = false }: SearchFormProps) {
+export default function SearchForm({ onSearch, isLoading = false, onCacheCleared }: SearchFormProps) {
   const [formData, setFormData] = useState<SearchFormData>(DEFAULT_FORM_VALUES);
   const [errors, setErrors] = useState<Partial<Record<keyof SearchFormData, string>>>({});
 
@@ -183,6 +185,15 @@ export default function SearchForm({ onSearch, isLoading = false }: SearchFormPr
             </>
           )}
         </button>
+
+        {/* Cache Controls */}
+        <div className="mt-4 flex justify-center">
+          <CacheControls
+            currentQuery={formData.query || undefined}
+            currentCountry={formData.country}
+            onCacheCleared={onCacheCleared}
+          />
+        </div>
       </form>
 
       {/* Example Queries */}

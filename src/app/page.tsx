@@ -69,6 +69,13 @@ export default function HomePage() {
     }
   };
 
+  const handleCacheCleared = () => {
+    // Reset results to force fresh search
+    if (results) {
+      toast.success('Cache cleared! Next search will use fresh data.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Header />
@@ -174,7 +181,11 @@ export default function HomePage() {
 
         {/* Search Form */}
         <div className="max-w-4xl mx-auto">
-          <SearchForm onSearch={handleSearch} isLoading={isLoading} />
+          <SearchForm 
+            onSearch={handleSearch} 
+            isLoading={isLoading} 
+            onCacheCleared={handleCacheCleared}
+          />
         </div>
 
         {/* Results */}
