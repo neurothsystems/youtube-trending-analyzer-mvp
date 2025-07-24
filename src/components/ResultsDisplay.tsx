@@ -161,7 +161,7 @@ export default function ResultsDisplay({ results, onRetry }: ResultsDisplayProps
           <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2">
             <Award className="w-5 h-5 text-red-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{results.metadata.trending_feed_matches}</p>
+          <p className="text-2xl font-bold text-gray-900">{results.metadata.trending_feed_matches || 0}</p>
           <p className="text-sm text-gray-600">In Trending Feed</p>
         </div>
 
@@ -184,7 +184,7 @@ export default function ResultsDisplay({ results, onRetry }: ResultsDisplayProps
               {results.metadata.cache_hit ? 'Cache Hit' : 'Fresh Analysis'}
             </span>
             
-            {results.metadata.llm_cost_cents > 0 && (
+            {results.metadata.llm_cost_cents && results.metadata.llm_cost_cents > 0 && (
               <span>
                 LLM Cost: {formatCurrency(results.metadata.llm_cost_cents / 100)}
               </span>
