@@ -50,8 +50,11 @@ class TrendingService:
             # Step 3: Calculate trending scores using MOMENTUM MVP algorithm
             scored_videos = self._calculate_trending_scores(videos, llm_results, country, timeframe, db)
             
-            # Step 4: Rank and format results
-            final_results = self._rank_and_format_results(scored_videos, limit)
+            # Step 4: Apply adaptive filtering and guarantee minimum results
+            filtered_videos = self._apply_adaptive_filtering(scored_videos, limit, query, country, timeframe, db)
+            
+            # Step 5: Rank and format results
+            final_results = self._rank_and_format_results(filtered_videos, limit)
             
             # Step 5: Prepare response with metadata
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -99,29 +102,55 @@ class TrendingService:
         return True
     
     def _collect_videos(self, query: str, country: str, timeframe: str, db: Session) -> List[Dict]:
-        """Collect videos from multiple sources."""
+        """Collect videos from multiple sources with multi-tier search strategy."""
         all_videos = []
+        target_video_count = 100  # Target more videos for better LLM analysis
         
         try:
             # Get country processor for search term expansion
             processor = CountryProcessorFactory.get_processor(country)
-            search_terms = processor.get_local_search_terms(query)
-            
-            # Search with expanded terms
             timeframe_hours = get_timeframe_hours(timeframe)
             published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
             
-            for search_term in search_terms[:3]:  # Limit to top 3 search terms
-                videos = youtube_service.search_videos(
-                    search_term, 
-                    country, 
-                    max_results=20,  # Limit per search term
-                    published_after=published_after
-                )
-                all_videos.extend(videos)
+            # Multi-tier search strategy
+            search_tiers = [
+                # Tier 1: Original and expanded terms
+                processor.get_local_search_terms(query)[:5],
+                # Tier 2: Broader category terms
+                processor.get_category_terms(query)[:3],
+                # Tier 3: Generic trending terms for country
+                processor.get_generic_trending_terms()[:2]
+            ]
             
-            # Get trending feed videos for context
-            trending_videos = youtube_service.get_trending_videos(country, max_results=20)
+            videos_collected = 0
+            
+            for tier_idx, search_terms in enumerate(search_tiers):
+                if videos_collected >= target_video_count:
+                    break
+                    
+                logger.info(f"Tier {tier_idx + 1}: Searching with {len(search_terms)} terms")
+                
+                for search_term in search_terms:
+                    if videos_collected >= target_video_count:
+                        break
+                    
+                    # Increase results per term based on tier
+                    max_results = 30 if tier_idx == 0 else (25 if tier_idx == 1 else 20)
+                    
+                    videos = youtube_service.search_videos(
+                        search_term, 
+                        country, 
+                        max_results=max_results,
+                        published_after=published_after
+                    )
+                    
+                    all_videos.extend(videos)
+                    videos_collected += len(videos)
+                    
+                    logger.info(f"  '{search_term}': {len(videos)} videos (total: {videos_collected})")
+            
+            # Always include trending feed videos for context
+            trending_videos = youtube_service.get_trending_videos(country, max_results=50)
             
             # Filter trending videos by timeframe
             filtered_trending = []
@@ -136,16 +165,22 @@ class TrendingService:
             
             all_videos.extend(filtered_trending)
             
-            # Remove duplicates and get detailed video info
+            # Remove duplicates and prioritize variety
             unique_videos = {}
             for video in all_videos:
                 video_id = video.get('video_id')
                 if video_id and video_id not in unique_videos:
                     unique_videos[video_id] = video
             
-            # Get detailed video information
-            video_ids = list(unique_videos.keys())[:50]  # Limit to 50 videos for API quota
-            detailed_videos = youtube_service.get_video_details(video_ids)
+            # Increase video limit for better LLM analysis
+            video_ids = list(unique_videos.keys())[:150]  # Increased from 50 to 150
+            
+            # Process in batches to respect API limits
+            detailed_videos = {}
+            for i in range(0, len(video_ids), 50):
+                batch_ids = video_ids[i:i+50]
+                batch_details = youtube_service.get_video_details(batch_ids)
+                detailed_videos.update(batch_details)
             
             # Merge detailed info
             final_videos = []
@@ -155,7 +190,7 @@ class TrendingService:
                 video_data['is_in_trending_feed'] = is_trending
                 final_videos.append(video_data)
             
-            logger.info(f"Collected {len(final_videos)} videos for analysis")
+            logger.info(f"Collected {len(final_videos)} videos for analysis (target: {target_video_count})")
             return final_videos
             
         except Exception as e:
@@ -319,6 +354,122 @@ class TrendingService:
             scored_videos.append(scored_video)
         
         return scored_videos
+    
+    def _apply_adaptive_filtering(self, scored_videos: List[Dict], limit: int, 
+                                 query: str, country: str, timeframe: str, db: Session) -> List[Dict]:
+        """Apply adaptive relevance thresholds to guarantee minimum results."""
+        if not scored_videos:
+            return []
+        
+        # Define threshold levels (from strict to lenient)
+        threshold_levels = [0.7, 0.5, 0.3, 0.2, 0.1, 0.0]
+        
+        for threshold in threshold_levels:
+            # Filter videos by current threshold
+            filtered = [
+                video for video in scored_videos 
+                if video.get('country_relevance', 0.0) >= threshold
+            ]
+            
+            logger.info(f"Threshold {threshold}: {len(filtered)} videos (target: {limit})")
+            
+            # If we have enough results, use this threshold
+            if len(filtered) >= limit:
+                return filtered
+            
+            # If we have some results but not enough, continue to next threshold
+            # but keep these as backup
+            if len(filtered) > 0:
+                backup_results = filtered
+        
+        # If still not enough results with any threshold, implement fallback strategy
+        if len(scored_videos) < limit:
+            logger.warning(f"Only {len(scored_videos)} videos found for '{query}' in {country}. "
+                          f"Attempting fallback search...")
+            
+            # Attempt broader search as fallback
+            fallback_videos = self._fallback_search(query, country, timeframe, db, limit - len(scored_videos))
+            
+            if fallback_videos:
+                # Get LLM analysis for fallback videos
+                fallback_llm = self._get_country_relevance_analysis(fallback_videos, country, db)
+                
+                # Calculate scores for fallback videos
+                fallback_scored = self._calculate_trending_scores(fallback_videos, fallback_llm, country, timeframe, db)
+                
+                # Combine with existing results
+                scored_videos.extend(fallback_scored)
+                
+                logger.info(f"Added {len(fallback_scored)} fallback videos. Total: {len(scored_videos)}")
+        
+        # Return all available videos if we still don't have enough
+        return scored_videos[:limit * 2] if len(scored_videos) > limit else scored_videos
+    
+    def _fallback_search(self, query: str, country: str, timeframe: str, db: Session, needed_count: int) -> List[Dict]:
+        """Perform broader fallback search when not enough results."""
+        try:
+            processor = CountryProcessorFactory.get_processor(country)
+            timeframe_hours = get_timeframe_hours(timeframe)
+            published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
+            
+            # Strategy 1: Generic trending terms for the country
+            generic_terms = processor.get_generic_trending_terms()
+            fallback_videos = []
+            
+            for term in generic_terms:
+                if len(fallback_videos) >= needed_count:
+                    break
+                    
+                videos = youtube_service.search_videos(
+                    term, 
+                    country, 
+                    max_results=needed_count,
+                    published_after=published_after
+                )
+                
+                for video in videos:
+                    if video['video_id'] not in [v.get('video_id') for v in fallback_videos]:
+                        fallback_videos.append(video)
+                        
+                        if len(fallback_videos) >= needed_count:
+                            break
+            
+            # Strategy 2: If still not enough, get broader trending feed
+            if len(fallback_videos) < needed_count:
+                trending_videos = youtube_service.get_trending_videos(country, max_results=needed_count * 2)
+                
+                for video in trending_videos:
+                    if len(fallback_videos) >= needed_count:
+                        break
+                        
+                    if video['video_id'] not in [v.get('video_id') for v in fallback_videos]:
+                        # Check if video is within timeframe
+                        upload_date = video.get('upload_date')
+                        if upload_date:
+                            if isinstance(upload_date, str):
+                                upload_date = datetime.fromisoformat(upload_date.replace('Z', '+00:00'))
+                            
+                            if upload_date >= published_after:
+                                fallback_videos.append(video)
+            
+            # Get detailed info for fallback videos
+            if fallback_videos:
+                video_ids = [v['video_id'] for v in fallback_videos]
+                detailed_videos = youtube_service.get_video_details(video_ids)
+                
+                final_fallback = []
+                for video_id, video_data in detailed_videos.items():
+                    video_data['is_in_trending_feed'] = True  # Mark as trending feed source
+                    final_fallback.append(video_data)
+                
+                logger.info(f"Fallback search found {len(final_fallback)} additional videos")
+                return final_fallback
+            
+            return []
+            
+        except Exception as e:
+            logger.error(f"Error in fallback search: {e}")
+            return []
     
     def _rank_and_format_results(self, scored_videos: List[Dict], limit: int) -> List[Dict]:
         """Rank videos by trending score and format for API response."""

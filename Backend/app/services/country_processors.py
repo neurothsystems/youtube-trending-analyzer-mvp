@@ -27,6 +27,16 @@ class CountryProcessor(ABC):
         """Get cultural patterns and context for analysis."""
         pass
     
+    @abstractmethod
+    def get_category_terms(self, query: str) -> List[str]:
+        """Get broader category terms for fallback search."""
+        pass
+    
+    @abstractmethod
+    def get_generic_trending_terms(self) -> List[str]:
+        """Get generic trending terms for this country."""
+        pass
+    
     def _get_country_name(self) -> str:
         """Get country name from country code."""
         country_names = {
@@ -122,6 +132,37 @@ class GermanyProcessor(CountryProcessor):
             'prime_time': '19:00-22:00',
             'weekend_activity_peak': 'Saturday 14:00-18:00'
         }
+    
+    def get_category_terms(self, query: str) -> List[str]:
+        """Get broader German category terms for fallback search."""
+        query_lower = query.lower()
+        
+        category_mapping = {
+            'music': ['musik', 'songs', 'charts', 'hits', 'bands', 'sänger'],
+            'gaming': ['gaming', 'spiele', 'games', 'zocken', 'gamer'],
+            'tech': ['tech', 'technologie', 'gadgets', 'computer', 'smartphone'],
+            'news': ['nachrichten', 'news', 'politik', 'aktuell'],
+            'comedy': ['comedy', 'lustig', 'humor', 'witzig', 'spaß'],
+            'sports': ['sport', 'fußball', 'bundesliga', 'fitness'],
+            'food': ['essen', 'kochen', 'rezepte', 'food', 'küche'],
+            'travel': ['reisen', 'urlaub', 'travel', 'städte']
+        }
+        
+        # Find matching category
+        for category, terms in category_mapping.items():
+            if any(keyword in query_lower for keyword in [category] + terms[:2]):
+                return terms[:3] + [category]
+        
+        # Default broader terms
+        return ['deutschland', 'german', 'trending']
+    
+    def get_generic_trending_terms(self) -> List[str]:
+        """Get generic German trending terms."""
+        return [
+            'trending deutschland',
+            'viral german',
+            'beliebt deutschland'
+        ]
 
 
 class USAProcessor(CountryProcessor):
@@ -188,6 +229,37 @@ class USAProcessor(CountryProcessor):
             'prime_time': '20:00-23:00',
             'weekend_activity_peak': 'Sunday 13:00-17:00'
         }
+    
+    def get_category_terms(self, query: str) -> List[str]:
+        """Get broader US category terms for fallback search."""
+        query_lower = query.lower()
+        
+        category_mapping = {
+            'music': ['music', 'songs', 'charts', 'hits', 'artists', 'album'],
+            'gaming': ['gaming', 'games', 'gameplay', 'streamer', 'esports'],
+            'tech': ['tech', 'technology', 'gadgets', 'review', 'unboxing'],
+            'news': ['news', 'politics', 'breaking', 'current events'],
+            'comedy': ['comedy', 'funny', 'humor', 'memes', 'pranks'],
+            'sports': ['sports', 'football', 'basketball', 'nfl', 'nba'],
+            'food': ['food', 'cooking', 'recipe', 'restaurant', 'taste test'],
+            'travel': ['travel', 'vacation', 'vlog', 'cities', 'adventure']
+        }
+        
+        # Find matching category
+        for category, terms in category_mapping.items():
+            if any(keyword in query_lower for keyword in [category] + terms[:2]):
+                return terms[:3] + [category]
+        
+        # Default broader terms
+        return ['trending', 'viral', 'popular']
+    
+    def get_generic_trending_terms(self) -> List[str]:
+        """Get generic US trending terms."""
+        return [
+            'trending usa',
+            'viral america',
+            'popular us'
+        ]
 
 
 class FranceProcessor(CountryProcessor):
@@ -254,6 +326,37 @@ class FranceProcessor(CountryProcessor):
             'prime_time': '20:00-22:00',
             'weekend_activity_peak': 'Sunday 15:00-19:00'
         }
+    
+    def get_category_terms(self, query: str) -> List[str]:
+        """Get broader French category terms for fallback search."""
+        query_lower = query.lower()
+        
+        category_mapping = {
+            'music': ['musique', 'chansons', 'artistes', 'hits', 'concerts'],
+            'gaming': ['gaming', 'jeux', 'games', 'gamer', 'esport'],
+            'tech': ['tech', 'technologie', 'gadgets', 'test', 'review'],
+            'news': ['actualités', 'news', 'politique', 'info'],
+            'comedy': ['comédie', 'humour', 'rigolo', 'marrant', 'sketch'],
+            'sports': ['sport', 'football', 'ligue 1', 'tennis'],
+            'food': ['cuisine', 'recette', 'chef', 'restaurant', 'food'],
+            'travel': ['voyage', 'travel', 'vacances', 'villes', 'aventure']
+        }
+        
+        # Find matching category
+        for category, terms in category_mapping.items():
+            if any(keyword in query_lower for keyword in [category] + terms[:2]):
+                return terms[:3] + [category]
+        
+        # Default broader terms
+        return ['tendance', 'viral', 'populaire']
+    
+    def get_generic_trending_terms(self) -> List[str]:
+        """Get generic French trending terms."""
+        return [
+            'tendance france',
+            'viral français',
+            'populaire fr'
+        ]
 
 
 class JapanProcessor(CountryProcessor):
@@ -320,6 +423,37 @@ class JapanProcessor(CountryProcessor):
             'prime_time': '19:00-22:00',
             'weekend_activity_peak': 'Sunday 14:00-18:00'
         }
+    
+    def get_category_terms(self, query: str) -> List[str]:
+        """Get broader Japanese category terms for fallback search."""
+        query_lower = query.lower()
+        
+        category_mapping = {
+            'music': ['音楽', 'music', 'jpop', 'jrock', 'songs'],
+            'gaming': ['ゲーム', 'gaming', 'games', 'gameplay', 'nintendo'],
+            'tech': ['技術', 'tech', 'technology', 'gadget', 'review'],
+            'news': ['ニュース', 'news', '政治', 'breaking'],
+            'comedy': ['コメディ', 'comedy', 'funny', 'バラエティ'],
+            'sports': ['スポーツ', 'sports', '野球', 'baseball', 'soccer'],
+            'food': ['料理', 'food', 'cooking', 'ramen', 'sushi'],
+            'anime': ['アニメ', 'anime', 'manga', 'otaku', 'cosplay']
+        }
+        
+        # Find matching category
+        for category, terms in category_mapping.items():
+            if any(keyword in query_lower for keyword in [category] + terms[:2]):
+                return terms[:3] + [category]
+        
+        # Default broader terms
+        return ['人気', 'viral', 'trending']
+    
+    def get_generic_trending_terms(self) -> List[str]:
+        """Get generic Japanese trending terms."""
+        return [
+            'トレンド 日本',
+            'viral japan',
+            '人気 動画'
+        ]
 
 
 class CountryProcessorFactory:
