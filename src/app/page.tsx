@@ -244,11 +244,7 @@ export default function HomePage() {
       <footer className="bg-white border-t border-gray-200 py-8">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500">
           <p>
-            YouTube Trending Analyzer MVP • Built with Next.js, FastAPI, and Gemini Flash • 
-            {" "}
-            <a href="/about" className="text-primary-600 hover:text-primary-700">
-              Learn more
-            </a>
+            YouTube Trending Analyzer MVP • Built with Next.js, FastAPI, and Gemini Flash
           </p>
         </div>
       </footer>

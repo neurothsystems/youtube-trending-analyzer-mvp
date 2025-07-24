@@ -169,7 +169,7 @@ export default function ResultsDisplay({ results, onRetry }: ResultsDisplayProps
           <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
             <Clock className="w-5 h-5 text-yellow-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{(results.processing_time_ms / 1000).toFixed(1)}s</p>
+          <p className="text-2xl font-bold text-gray-900">{((results.processing_time_ms || 0) / 1000).toFixed(1)}s</p>
           <p className="text-sm text-gray-600">Processing Time</p>
         </div>
       </div>

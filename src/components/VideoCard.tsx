@@ -176,8 +176,8 @@ export default function VideoCard({ video, index }: VideoCardProps) {
 
         {/* Engagement Rate */}
         <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
-          <span>Engagement: {video.engagement_rate.toFixed(2)}%</span>
-          <span>Age: {video.age_hours.toFixed(1)}h</span>
+          <span>Engagement: {(video.engagement_rate || 0).toFixed(2)}%</span>
+          <span>Age: {(video.age_hours || 0).toFixed(1)}h</span>
           <Link 
             href={video.url} 
             target="_blank" 
