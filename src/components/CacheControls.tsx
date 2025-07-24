@@ -28,10 +28,14 @@ export default function CacheControls({
     setShowConfirm(false);
 
     try {
+      console.log('Clearing cache:', { specific, currentCountry, currentQuery });
+      
       const result = await TrendingAnalyzerAPI.invalidateCache(
         specific && currentCountry ? currentCountry : undefined,
         specific && currentQuery ? currentQuery : undefined
       );
+
+      console.log('Cache clear result:', result);
 
       if (result.success) {
         const message = specific 
@@ -48,7 +52,7 @@ export default function CacheControls({
       }
     } catch (error) {
       console.error('Cache clear error:', error);
-      toast.error('Error clearing cache');
+      toast.error(`Error clearing cache: ${error.message || 'Unknown error'}`);
     } finally {
       setIsClearing(false);
     }
