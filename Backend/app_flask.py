@@ -182,7 +182,7 @@ def health_check():
         health_status = {
             'status': 'healthy',
             'timestamp': datetime.utcnow().isoformat(),
-            'version': '1.0.0',
+            'version': '1.1.0-origin-country',
             'environment': config.ENVIRONMENT,
             'checks': {
                 'youtube_api': {'status': 'healthy' if config.YOUTUBE_API_KEY else 'warning'},
@@ -330,7 +330,17 @@ def root():
     """Root endpoint"""
     return jsonify({
         'service': 'YouTube Trending Analyzer MVP',
-        'version': '1.0.0',
+        'version': '1.1.0-origin-country',
+        'build_info': {
+            'commit': '5b70612',
+            'features': [
+                'origin_country_detection',
+                'multi_tier_search',
+                'search_transparency',
+                'batch_llm_processing',
+                'adaptive_filtering'
+            ]
+        },
         'status': 'running',
         'docs': '/api/mvp/health'
     })
