@@ -13,8 +13,8 @@ import {
   getRelevanceScoreLabel,
   truncateText,
   calculatePercentage,
-  getYouTubeThumbnail
-,
+  getYouTubeThumbnail,
+  getCountryFlag,
   cn
 } from 'lib/utils';
 
@@ -93,9 +93,17 @@ export default function VideoCard({ video, index }: VideoCardProps) {
               {video.title}
             </h3>
           </Link>
-          <p className="text-sm text-gray-600 mt-1">
-            {video.channel} {video.channel_country && `• ${video.channel_country}`}
-          </p>
+          <div className="flex items-center space-x-2 mt-1">
+            <p className="text-sm text-gray-600">
+              {video.channel}
+            </p>
+            {video.origin_country && video.origin_country !== 'UNKNOWN' && (
+              <div className="flex items-center space-x-1">
+                <span className="text-lg">{getCountryFlag(video.origin_country)}</span>
+                <span className="text-xs text-gray-500 font-medium">{video.origin_country}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Stats */}

@@ -6,6 +6,7 @@ export interface TrendingVideo {
   title: string;
   channel: string;
   channel_country: string;
+  origin_country: string;
   views: number;
   views_in_timeframe: number;
   likes: number;
@@ -37,6 +38,18 @@ export interface TrendingResponse {
     llm_cost_cents?: number;
     timestamp?: string;
     message?: string;
+    search_terms_used?: {
+      tier_1_terms?: string[];
+      tier_2_terms?: string[];
+      tier_3_terms?: string[];
+      total_search_terms?: number;
+    };
+    collection_stats?: {
+      videos_from_search?: number;
+      videos_from_trending_feed?: number;
+      total_collected?: number;
+      duplicates_removed?: number;
+    };
   };
   error?: string;
 }

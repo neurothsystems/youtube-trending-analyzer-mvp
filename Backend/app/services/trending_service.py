@@ -39,7 +39,7 @@ class TrendingService:
         
         try:
             # Step 1: Collect videos from multiple sources
-            videos = self._collect_videos(query, country, timeframe, db)
+            videos, transparency_data = self._collect_videos(query, country, timeframe, db)
             
             if not videos:
                 return self._empty_result(query, country, timeframe, "No videos found")
@@ -72,7 +72,9 @@ class TrendingService:
                     "llm_analyzed": len(llm_results),
                     "cache_hit": False,
                     "trending_feed_matches": self._count_trending_matches(final_results),
-                    "llm_cost_cents": round(llm_service.daily_cost * 100, 2) if llm_service else 0
+                    "llm_cost_cents": round(llm_service.daily_cost * 100, 2) if llm_service else 0,
+                    "search_terms_used": transparency_data.get('search_terms_used', {}),
+                    "collection_stats": transparency_data.get('collection_stats', {})
                 }
             }
             
@@ -101,10 +103,24 @@ class TrendingService:
             
         return True
     
-    def _collect_videos(self, query: str, country: str, timeframe: str, db: Session) -> List[Dict]:
+    def _collect_videos(self, query: str, country: str, timeframe: str, db: Session) -> tuple[List[Dict], Dict]:
         """Collect videos from multiple sources with multi-tier search strategy."""
         all_videos = []
         target_video_count = 100  # Target more videos for better LLM analysis
+        
+        # Initialize collection stats
+        collection_stats = {
+            'videos_from_search': 0,
+            'videos_from_trending_feed': 0,
+            'total_collected': 0,
+            'duplicates_removed': 0
+        }
+        search_terms_used = {
+            'tier_1_terms': [],
+            'tier_2_terms': [],
+            'tier_3_terms': [],
+            'total_search_terms': 0
+        }
         
         try:
             # Get country processor for search term expansion
@@ -113,14 +129,17 @@ class TrendingService:
             published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
             
             # Multi-tier search strategy
-            search_tiers = [
-                # Tier 1: Original and expanded terms
-                processor.get_local_search_terms(query)[:5],
-                # Tier 2: Broader category terms
-                processor.get_category_terms(query)[:3],
-                # Tier 3: Generic trending terms for country
-                processor.get_generic_trending_terms()[:2]
-            ]
+            tier_1_terms = processor.get_local_search_terms(query)[:5]
+            tier_2_terms = processor.get_category_terms(query)[:3]
+            tier_3_terms = processor.get_generic_trending_terms()[:2]
+            
+            search_tiers = [tier_1_terms, tier_2_terms, tier_3_terms]
+            
+            # Store search terms for transparency
+            search_terms_used['tier_1_terms'] = tier_1_terms
+            search_terms_used['tier_2_terms'] = tier_2_terms
+            search_terms_used['tier_3_terms'] = tier_3_terms
+            search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms) + len(tier_3_terms)
             
             videos_collected = 0
             
@@ -146,6 +165,7 @@ class TrendingService:
                     
                     all_videos.extend(videos)
                     videos_collected += len(videos)
+                    collection_stats['videos_from_search'] += len(videos)
                     
                     logger.info(f"  '{search_term}': {len(videos)} videos (total: {videos_collected})")
             
@@ -164,13 +184,20 @@ class TrendingService:
                         filtered_trending.append(video)
             
             all_videos.extend(filtered_trending)
+            collection_stats['videos_from_trending_feed'] = len(filtered_trending)
             
             # Remove duplicates and prioritize variety
             unique_videos = {}
+            duplicates_count = 0
             for video in all_videos:
                 video_id = video.get('video_id')
                 if video_id and video_id not in unique_videos:
                     unique_videos[video_id] = video
+                else:
+                    duplicates_count += 1
+            
+            collection_stats['duplicates_removed'] = duplicates_count
+            collection_stats['total_collected'] = len(unique_videos)
             
             # Increase video limit for better LLM analysis
             video_ids = list(unique_videos.keys())[:150]  # Increased from 50 to 150
@@ -191,11 +218,18 @@ class TrendingService:
                 final_videos.append(video_data)
             
             logger.info(f"Collected {len(final_videos)} videos for analysis (target: {target_video_count})")
-            return final_videos
+            
+            # Prepare transparency data
+            transparency_data = {
+                'search_terms_used': search_terms_used,
+                'collection_stats': collection_stats
+            }
+            
+            return final_videos, transparency_data
             
         except Exception as e:
             logger.error(f"Error collecting videos: {e}")
-            return []
+            return [], {'search_terms_used': search_terms_used, 'collection_stats': collection_stats}
     
     def _get_country_relevance_analysis(self, videos: List[Dict], country: str, 
                                        db: Session) -> Dict[str, Dict]:
@@ -215,6 +249,7 @@ class TrendingService:
                 'relevance_score': analysis.relevance_score,
                 'reasoning': analysis.reasoning,
                 'confidence_score': analysis.confidence_score,
+                'origin_country': getattr(analysis, 'origin_country', 'UNKNOWN'),
                 'analyzed_at': analysis.analyzed_at.isoformat(),
                 'llm_model': analysis.llm_model
             }
@@ -238,6 +273,7 @@ class TrendingService:
                         relevance_score=analysis['relevance_score'],
                         reasoning=analysis['reasoning'],
                         confidence_score=analysis['confidence_score'],
+                        origin_country=analysis.get('origin_country', 'UNKNOWN'),
                         llm_model=analysis['llm_model']
                     )
                     db.add(db_analysis)
@@ -350,6 +386,7 @@ class TrendingService:
             scored_video = {**video, **score_data}
             scored_video['country_relevance_reasoning'] = relevance_data.get('reasoning', '')
             scored_video['confidence_score'] = relevance_data.get('confidence_score', 0.5)
+            scored_video['origin_country'] = relevance_data.get('origin_country', 'UNKNOWN')
             
             scored_videos.append(scored_video)
         
@@ -485,6 +522,7 @@ class TrendingService:
                 'title': video['title'],
                 'channel': video['channel_name'],
                 'channel_country': video.get('channel_country', ''),
+                'origin_country': video.get('origin_country', 'UNKNOWN'),
                 'views': video['views'],
                 'views_in_timeframe': int(video['views_per_hour'] * get_timeframe_hours(video.get('timeframe', '48h'))),
                 'likes': video['likes'],

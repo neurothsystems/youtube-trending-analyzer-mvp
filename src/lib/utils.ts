@@ -276,6 +276,36 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Get country flag emoji from country code
+ */
+export function getCountryFlag(countryCode: string): string {
+  const flags: Record<string, string> = {
+    'DE': '🇩🇪',
+    'US': '🇺🇸', 
+    'FR': '🇫🇷',
+    'JP': '🇯🇵',
+    'UNKNOWN': '🌍'
+  };
+  
+  return flags[countryCode.toUpperCase()] || '🌍';
+}
+
+/**
+ * Get country name from country code
+ */
+export function getCountryName(countryCode: string): string {
+  const names: Record<string, string> = {
+    'DE': 'Germany',
+    'US': 'United States',
+    'FR': 'France', 
+    'JP': 'Japan',
+    'UNKNOWN': 'Unknown'
+  };
+  
+  return names[countryCode.toUpperCase()] || 'Unknown';
+}
+
+/**
  * Copy text to clipboard
  */
 export async function copyToClipboard(text: string): Promise<boolean> {

@@ -12,6 +12,7 @@ import {
   cn
 } from 'lib/utils';
 import VideoCard from './VideoCard';
+import SearchTransparency from './SearchTransparency';
 
 interface ResultsDisplayProps {
   results: TrendingResponse;
@@ -198,6 +199,9 @@ export default function ResultsDisplay({ results, onRetry }: ResultsDisplayProps
           </div>
         </div>
       </div>
+
+      {/* Search Transparency */}
+      <SearchTransparency data={results} />
 
       {/* Results Grid/List */}
       {results.results.length > 0 ? (

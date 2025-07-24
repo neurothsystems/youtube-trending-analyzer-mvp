@@ -209,6 +209,7 @@ VIDEO_ID: <video_id>
 SCORE: <score between 0.0 and 1.0>
 REASONING: <brief explanation why this score was given>
 CONFIDENCE: <confidence in analysis between 0.0 and 1.0>
+ORIGIN: <estimated video origin country: DE/US/FR/JP/UNKNOWN>
 
 Rules:
 - Be precise with scores (use decimals like 0.85, 0.23, etc.)
@@ -216,6 +217,7 @@ Rules:
 - Consider language, cultural context, creator origin, and audience engagement patterns
 - A score of 0.0 means completely irrelevant to {target_country}
 - A score of 1.0 means highly relevant and likely to trend specifically in {target_country}
+- ORIGIN should be the likely origin country of the video/channel (DE/US/FR/JP/UNKNOWN)
 - Provide analysis for ALL videos, even if some data is missing
 
 Begin analysis:
@@ -245,6 +247,7 @@ Begin analysis:
                     confidence = 0.5
                     
                     # Parse remaining lines
+                    origin_country = 'UNKNOWN'
                     for line in lines[1:]:
                         line = line.strip()
                         if line.startswith('SCORE:'):
@@ -263,6 +266,11 @@ Begin analysis:
                                 confidence = max(0.0, min(1.0, confidence))  # Clamp to valid range
                             except:
                                 confidence = 0.5
+                        
+                        elif line.startswith('ORIGIN:'):
+                            origin = line.replace('ORIGIN:', '').strip().upper()
+                            if origin in ['DE', 'US', 'FR', 'JP']:
+                                origin_country = origin
                     
                     # Store result if video ID is valid
                     if video_id and video_id in video_ids:
@@ -270,6 +278,7 @@ Begin analysis:
                             'relevance_score': score,
                             'reasoning': reasoning,
                             'confidence_score': confidence,
+                            'origin_country': origin_country,
                             'analyzed_at': datetime.now(timezone.utc).isoformat(),
                             'llm_model': 'gemini-flash'
                         }
@@ -285,6 +294,7 @@ Begin analysis:
                         'relevance_score': 0.0,
                         'reasoning': 'Analysis failed or not provided',
                         'confidence_score': 0.1,
+                        'origin_country': 'UNKNOWN',
                         'analyzed_at': datetime.now(timezone.utc).isoformat(),
                         'llm_model': 'gemini-flash'
                     }
@@ -298,6 +308,7 @@ Begin analysis:
                     'relevance_score': 0.0,
                     'reasoning': 'Failed to parse LLM response',
                     'confidence_score': 0.1,
+                    'origin_country': 'UNKNOWN',
                     'analyzed_at': datetime.now(timezone.utc).isoformat(),
                     'llm_model': 'gemini-flash'
                 }

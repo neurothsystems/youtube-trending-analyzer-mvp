@@ -21,6 +21,7 @@ class CountryRelevance(Base):
     )
     reasoning = Column(Text, doc="LLM reasoning for the relevance score")
     confidence_score = Column(Float, doc="Confidence in the analysis")
+    origin_country = Column(String(7), default='UNKNOWN', doc="Detected video origin country (DE/US/FR/JP/UNKNOWN)")
     
     # Metadata
     analyzed_at = Column(DateTime(timezone=True), default=func.now(), index=True)
@@ -49,6 +50,7 @@ class CountryRelevance(Base):
             'relevance_score': self.relevance_score,
             'reasoning': self.reasoning,
             'confidence_score': self.confidence_score,
+            'origin_country': self.origin_country,
             'analyzed_at': self.analyzed_at.isoformat() if self.analyzed_at else None,
             'llm_model': self.llm_model
         }
