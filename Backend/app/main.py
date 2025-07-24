@@ -71,7 +71,17 @@ async def root():
     """Root endpoint returning API information."""
     return {
         "message": "YouTube Trending Analyzer MVP API",
-        "version": "1.0.0",
+        "version": "1.1.0-origin-country",
+        "build_info": {
+            "commit": "eb10e19",
+            "features": [
+                "origin_country_detection",
+                "multi_tier_search",
+                "search_transparency",
+                "batch_llm_processing",
+                "adaptive_filtering"
+            ]
+        },
         "docs": "/docs",
         "algorithm": "MVP-LLM-Enhanced",
         "supported_countries": ["DE", "US", "FR", "JP"],
@@ -83,9 +93,18 @@ async def root():
 async def api_info():
     """API information endpoint."""
     return {
-        "api_version": "mvp",
+        "api_version": "1.1.0-origin-country",
+        "build_commit": "eb10e19",
         "algorithm": "MVP-LLM-Enhanced",
         "llm_provider": "gemini-flash",
+        "active_features": {
+            "origin_country_detection": True,
+            "multi_tier_search": True,
+            "search_transparency": True,
+            "batch_llm_processing": True,
+            "adaptive_filtering": True,
+            "cache_invalidation": True
+        },
         "supported_countries": {
             "DE": "Germany",
             "US": "USA", 
