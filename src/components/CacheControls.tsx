@@ -52,7 +52,8 @@ export default function CacheControls({
       }
     } catch (error) {
       console.error('Cache clear error:', error);
-      toast.error(`Error clearing cache: ${error.message || 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error clearing cache: ${errorMessage}`);
     } finally {
       setIsClearing(false);
     }
