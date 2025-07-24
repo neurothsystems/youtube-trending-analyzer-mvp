@@ -412,7 +412,7 @@ class TrendingService:
             
             # If we have enough results, use this threshold
             if len(filtered) >= limit:
-                return filtered
+                return filtered[:limit * 2]  # Return slightly more for ranking flexibility
             
             # If we have some results but not enough, continue to next threshold
             # but keep these as backup
