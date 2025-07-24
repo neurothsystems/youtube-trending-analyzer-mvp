@@ -90,7 +90,9 @@ export class TrendingAnalyzerAPI {
           query: params.query,
           country: params.country,
           timeframe: params.timeframe,
-          limit: params.limit
+          limit: params.limit,
+          // Add cache busting parameter to force fresh results
+          _t: Date.now()
         }
       });
       
