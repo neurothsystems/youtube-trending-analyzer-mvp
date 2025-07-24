@@ -150,4 +150,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 - [API Documentation](docs/API.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
-- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)# Force deployment trigger
