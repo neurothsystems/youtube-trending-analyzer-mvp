@@ -51,9 +51,9 @@ export default function SearchForm({ onSearch, isLoading = false, onCacheCleared
       return;
     }
 
-    // Clear errors and submit
+    // Clear errors and submit with fixed limit
     setErrors({});
-    onSearch(formData);
+    onSearch({ ...formData, limit: 10 });
   };
 
   const handleExampleClick = (example: string) => {
@@ -144,28 +144,6 @@ export default function SearchForm({ onSearch, isLoading = false, onCacheCleared
           </div>
         </div>
 
-        {/* Advanced Options */}
-        <div>
-          <label htmlFor="limit" className="block text-sm font-medium text-gray-700 mb-2">
-            Number of Results: {formData.limit}
-          </label>
-          <input
-            type="range"
-            id="limit"
-            min="5"
-            max={UI_CONSTANTS.maxResultLimit}
-            step="5"
-            value={formData.limit}
-            onChange={(e) => handleInputChange('limit', parseInt(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-            disabled={isLoading}
-          />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>5</span>
-            <span>25</span>
-            <span>50</span>
-          </div>
-        </div>
 
         {/* Submit Button */}
         <button
