@@ -155,6 +155,35 @@ export class TrendingAnalyzerAPI {
   }
 
   /**
+   * Get backend version and feature information
+   */
+  static async getBackendInfo(): Promise<{
+    version: string;
+    build_info?: {
+      commit: string;
+      features: string[];
+    };
+    api_version?: string;
+    build_commit?: string;
+    active_features?: Record<string, boolean>;
+  }> {
+    try {
+      const response = await api.get('/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching backend info:', error);
+      // Fallback to API info endpoint
+      try {
+        const apiResponse = await api.get('/api/mvp');
+        return apiResponse.data;
+      } catch (fallbackError) {
+        console.error('Error fetching backend API info:', fallbackError);
+        throw error;
+      }
+    }
+  }
+
+  /**
    * Get country-specific analytics
    */
   static async getCountryAnalytics(

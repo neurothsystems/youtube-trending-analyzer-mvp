@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Menu, X, Activity, BarChart3, Info } from 'lucide-react';
 import { APP_CONFIG } from 'lib/constants';
+import VersionStatus from './VersionStatus';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -26,9 +27,11 @@ export default function Header() {
                 <h1 className="text-xl font-bold text-gray-900">
                   YouTube Trending Analyzer
                 </h1>
-                <p className="text-xs text-gray-500">
-                  {APP_CONFIG.algorithm} • v{APP_CONFIG.version}
-                </p>
+                <div className="flex items-center space-x-2 text-xs text-gray-500">
+                  <span>{APP_CONFIG.algorithm}</span>
+                  <span>•</span>
+                  <VersionStatus />
+                </div>
               </div>
             </Link>
           </div>
