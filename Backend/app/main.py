@@ -28,6 +28,42 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Database tables initialized successfully")
+        
+        # Manual check and creation for critical tables that might be missing
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Check if country_relevance table exists
+            result = conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'country_relevance'
+                );
+            """))
+            table_exists = result.scalar()
+            
+            if not table_exists:
+                logger.info("Creating missing country_relevance table manually")
+                conn.execute(text("""
+                    CREATE TABLE country_relevance (
+                        video_id VARCHAR(20) NOT NULL,
+                        country VARCHAR(2) NOT NULL,
+                        relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+                        reasoning TEXT,
+                        confidence_score FLOAT CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
+                        origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
+                        analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        llm_model VARCHAR(50) DEFAULT 'gemini-flash',
+                        PRIMARY KEY (video_id, country),
+                        FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                    );
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_country_score ON country_relevance (country, relevance_score);"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_analyzed_at ON country_relevance (analyzed_at);"))
+                conn.commit()
+                logger.info("country_relevance table created successfully")
+            else:
+                logger.info("country_relevance table already exists")
+                
     except Exception as e:
         logger.warning(f"Database initialization warning (tables may already exist): {e}")
         # Continue startup even if tables already exist
