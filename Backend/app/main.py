@@ -29,40 +29,136 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Database tables initialized successfully")
         
-        # Manual check and creation for critical tables that might be missing
+        # Manual table creation for missing tables
         from sqlalchemy import text
         with engine.connect() as conn:
-            # Check if country_relevance table exists
-            result = conn.execute(text("""
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables 
-                    WHERE table_name = 'country_relevance'
-                );
-            """))
-            table_exists = result.scalar()
+            # Create all tables step by step if they don't exist
+            tables_to_create = [
+                {
+                    'name': 'videos',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS videos (
+                            video_id VARCHAR(20) PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            channel_name VARCHAR(255),
+                            channel_country VARCHAR(2),
+                            views INTEGER DEFAULT 0,
+                            likes INTEGER DEFAULT 0,
+                            comments INTEGER DEFAULT 0,
+                            upload_date TIMESTAMP WITH TIME ZONE,
+                            last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            duration INTEGER,
+                            thumbnail_url TEXT,
+                            description TEXT,
+                            tags JSON
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_upload_date ON videos (upload_date);",
+                        "CREATE INDEX IF NOT EXISTS idx_channel_country ON videos (channel_country);",
+                        "CREATE INDEX IF NOT EXISTS idx_views ON videos (views);",
+                        "CREATE INDEX IF NOT EXISTS idx_last_updated ON videos (last_updated);"
+                    ]
+                },
+                {
+                    'name': 'country_relevance',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS country_relevance (
+                            video_id VARCHAR(20) NOT NULL,
+                            country VARCHAR(2) NOT NULL,
+                            relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+                            reasoning TEXT,
+                            confidence_score FLOAT CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
+                            origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
+                            analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            llm_model VARCHAR(50) DEFAULT 'gemini-flash',
+                            PRIMARY KEY (video_id, country),
+                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_country_score ON country_relevance (country, relevance_score);",
+                        "CREATE INDEX IF NOT EXISTS idx_analyzed_at ON country_relevance (analyzed_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_video_country ON country_relevance (video_id, country);"
+                    ]
+                },
+                {
+                    'name': 'trending_feeds',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS trending_feeds (
+                            id SERIAL PRIMARY KEY,
+                            video_id VARCHAR(20) NOT NULL,
+                            country VARCHAR(2) NOT NULL,
+                            trending_rank INTEGER,
+                            category VARCHAR(50),
+                            captured_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_country_captured ON trending_feeds (country, captured_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_video_trending ON trending_feeds (video_id);",
+                        "CREATE INDEX IF NOT EXISTS idx_country_rank_captured ON trending_feeds (country, trending_rank, captured_at);"
+                    ]
+                },
+                {
+                    'name': 'search_cache',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS search_cache (
+                            cache_key VARCHAR(255) PRIMARY KEY,
+                            query VARCHAR(255),
+                            country VARCHAR(2),
+                            timeframe VARCHAR(20),
+                            results JSON NOT NULL,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            expires_at TIMESTAMP WITH TIME ZONE
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_expires ON search_cache (expires_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_query_country_timeframe ON search_cache (query, country, timeframe);",
+                        "CREATE INDEX IF NOT EXISTS idx_created_at ON search_cache (created_at);"
+                    ]
+                },
+                {
+                    'name': 'training_labels',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS training_labels (
+                            id SERIAL PRIMARY KEY,
+                            video_id VARCHAR(20) NOT NULL,
+                            country VARCHAR(2) NOT NULL,
+                            query VARCHAR(255),
+                            is_relevant BOOLEAN NOT NULL,
+                            relevance_score FLOAT,
+                            reasoning TEXT,
+                            labeled_by VARCHAR(50) DEFAULT 'admin',
+                            labeled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_training_country ON training_labels (country);",
+                        "CREATE INDEX IF NOT EXISTS idx_video_country_training ON training_labels (video_id, country);",
+                        "CREATE INDEX IF NOT EXISTS idx_labeled_at ON training_labels (labeled_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_query ON training_labels (query);"
+                    ]
+                }
+            ]
             
-            if not table_exists:
-                logger.info("Creating missing country_relevance table manually")
-                conn.execute(text("""
-                    CREATE TABLE country_relevance (
-                        video_id VARCHAR(20) NOT NULL,
-                        country VARCHAR(2) NOT NULL,
-                        relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
-                        reasoning TEXT,
-                        confidence_score FLOAT CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
-                        origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
-                        analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        llm_model VARCHAR(50) DEFAULT 'gemini-flash',
-                        PRIMARY KEY (video_id, country),
-                        FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
-                    );
-                """))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_country_score ON country_relevance (country, relevance_score);"))
-                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_analyzed_at ON country_relevance (analyzed_at);"))
-                conn.commit()
-                logger.info("country_relevance table created successfully")
-            else:
-                logger.info("country_relevance table already exists")
+            for table in tables_to_create:
+                try:
+                    logger.info(f"Creating table {table['name']} if not exists...")
+                    conn.execute(text(table['sql']))
+                    
+                    # Create indexes
+                    for index_sql in table['indexes']:
+                        conn.execute(text(index_sql))
+                    
+                    conn.commit()
+                    logger.info(f"Table {table['name']} created successfully")
+                except Exception as e:
+                    logger.warning(f"Error creating table {table['name']}: {e}")
+                    conn.rollback()
                 
     except Exception as e:
         logger.warning(f"Database initialization warning (tables may already exist): {e}")
