@@ -335,6 +335,442 @@ async def database_details(db: Session = Depends(get_db)):
         }
 
 
+@router.get("/test/youtube")
+async def test_youtube_api():
+    """
+    Test YouTube API functionality with new API key.
+    
+    Tests basic YouTube API connectivity and quota availability.
+    """
+    try:
+        from app.services.youtube_service import youtube_service
+        
+        result = {
+            "test": "youtube_api",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "testing"
+        }
+        
+        # Test 1: API availability
+        try:
+            is_available = youtube_service._is_available()
+            result["api_available"] = is_available
+            
+            if not is_available:
+                result["status"] = "failed"
+                result["error"] = "YouTube API not available"
+                return result
+                
+        except Exception as e:
+            result["status"] = "failed"
+            result["error"] = f"YouTube API availability check failed: {str(e)}"
+            return result
+        
+        # Test 2: Simple search test
+        try:
+            test_videos = youtube_service.search_videos("test", "US", max_results=5)
+            result["search_test"] = {
+                "success": True,
+                "videos_found": len(test_videos),
+                "sample_video_ids": [v.video_id for v in test_videos[:3]]
+            }
+            
+        except Exception as e:
+            result["search_test"] = {
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 3: Video details test
+        if result.get("search_test", {}).get("success") and result["search_test"]["videos_found"] > 0:
+            try:
+                sample_id = result["search_test"]["sample_video_ids"][0]
+                video_details = youtube_service.get_video_details([sample_id])
+                result["details_test"] = {
+                    "success": True,
+                    "video_id": sample_id,
+                    "has_title": bool(video_details[0].title if video_details else False),
+                    "has_views": bool(video_details[0].views if video_details else False)
+                }
+                
+            except Exception as e:
+                result["details_test"] = {
+                    "success": False,
+                    "error": str(e)
+                }
+        
+        # Test 4: Quota info
+        try:
+            quota_info = youtube_service.get_api_quota_info()
+            result["quota_info"] = quota_info
+            
+        except Exception as e:
+            result["quota_info"] = {"error": str(e)}
+        
+        # Overall assessment
+        search_ok = result.get("search_test", {}).get("success", False)
+        details_ok = result.get("details_test", {}).get("success", True)  # Optional
+        
+        if search_ok:
+            result["status"] = "passed"
+            result["message"] = "YouTube API is working correctly"
+        else:
+            result["status"] = "failed"
+            result["message"] = "YouTube API has issues"
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"YouTube API test error: {e}")
+        return {
+            "test": "youtube_api",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "YouTube API test system failure"
+        }
+
+
+@router.get("/test/gemini")
+async def test_gemini_api():
+    """
+    Test Gemini LLM API functionality with new API key.
+    
+    Tests basic Gemini API connectivity and simple analysis.
+    """
+    try:
+        from app.services.llm_service import llm_service
+        
+        result = {
+            "test": "gemini_api",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "testing"
+        }
+        
+        # Test 1: API availability
+        try:
+            is_available = llm_service._is_available()
+            result["api_available"] = is_available
+            
+            if not is_available:
+                result["status"] = "failed"
+                result["error"] = "Gemini API not available"
+                return result
+                
+        except Exception as e:
+            result["status"] = "failed"
+            result["error"] = f"Gemini API availability check failed: {str(e)}"
+            return result
+        
+        # Test 2: Simple text analysis
+        try:
+            # Create a simple test video object
+            class TestVideo:
+                def __init__(self):
+                    self.video_id = "test123"
+                    self.title = "German Gaming Tutorial - Minecraft Survival Guide"
+                    self.channel_name = "DeutscherGamer"
+                    self.description = "Ein ausführlicher Guide zum Überleben in Minecraft auf Deutsch"
+                    self.tags = ["minecraft", "gaming", "deutsch", "tutorial"]
+                    
+            test_video = TestVideo()
+            
+            # Test country relevance analysis for Germany
+            analysis_result = llm_service.analyze_country_relevance_batch(
+                [test_video], "DE"
+            )
+            
+            result["analysis_test"] = {
+                "success": True,
+                "video_analyzed": test_video.video_id,
+                "relevance_score": analysis_result[0].relevance_score if analysis_result else None,
+                "reasoning_provided": bool(analysis_result[0].reasoning if analysis_result else False),
+                "origin_country": analysis_result[0].origin_country if analysis_result else None
+            }
+            
+        except Exception as e:
+            result["analysis_test"] = {
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 3: Cost tracking
+        try:
+            cost_info = llm_service.get_cost_info()
+            result["cost_info"] = cost_info
+            
+        except Exception as e:
+            result["cost_info"] = {"error": str(e)}
+        
+        # Test 4: Search term expansion
+        try:
+            expanded_terms = llm_service.expand_search_terms("gaming", "DE")
+            result["expansion_test"] = {
+                "success": True,
+                "original_term": "gaming",
+                "country": "DE",
+                "expanded_terms": expanded_terms[:5] if expanded_terms else []
+            }
+            
+        except Exception as e:
+            result["expansion_test"] = {
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Overall assessment
+        analysis_ok = result.get("analysis_test", {}).get("success", False)
+        expansion_ok = result.get("expansion_test", {}).get("success", True)  # Optional
+        
+        if analysis_ok:
+            result["status"] = "passed"
+            result["message"] = "Gemini API is working correctly"
+        else:
+            result["status"] = "failed" 
+            result["message"] = "Gemini API has issues"
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Gemini API test error: {e}")
+        return {
+            "test": "gemini_api",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "Gemini API test system failure"
+        }
+
+
+@router.get("/test/database")
+async def test_database_operations(db: Session = Depends(get_db)):
+    """
+    Test database operations and table functionality.
+    
+    Tests table creation, insertion, querying, and cleanup.
+    """
+    try:
+        from sqlalchemy import text
+        from app.models.video import Video
+        from app.models.country_relevance import CountryRelevance
+        import uuid
+        from datetime import datetime, timezone
+        
+        result = {
+            "test": "database_operations",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "testing",
+            "operations": {}
+        }
+        
+        # Test 1: Basic connection
+        try:
+            db.execute(text("SELECT 1"))
+            result["operations"]["connection"] = {"success": True, "message": "Database connection OK"}
+        except Exception as e:
+            result["operations"]["connection"] = {"success": False, "error": str(e)}
+            result["status"] = "failed"
+            return result
+        
+        # Test 2: Table existence check
+        try:
+            tables_query = text("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            """)
+            tables_result = db.execute(tables_query).fetchall()
+            existing_tables = [row[0] for row in tables_result]
+            
+            required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels"]
+            missing_tables = [t for t in required_tables if t not in existing_tables]
+            
+            result["operations"]["tables_check"] = {
+                "success": len(missing_tables) == 0,
+                "existing_tables": existing_tables,
+                "missing_tables": missing_tables,
+                "message": "All tables exist" if len(missing_tables) == 0 else f"Missing: {missing_tables}"
+            }
+            
+            if missing_tables:
+                result["status"] = "failed"
+                return result
+                
+        except Exception as e:
+            result["operations"]["tables_check"] = {"success": False, "error": str(e)}
+            result["status"] = "failed"
+            return result
+        
+        # Test 3: Insert test video
+        test_video_id = f"test_{uuid.uuid4().hex[:8]}"
+        try:
+            test_video = Video(
+                video_id=test_video_id,
+                title="Test Video for Database",
+                channel_name="Test Channel",
+                channel_country="US",
+                views=1000,
+                likes=50,
+                comments=10,
+                duration=120
+            )
+            db.add(test_video)
+            db.commit()
+            
+            result["operations"]["video_insert"] = {
+                "success": True,
+                "test_video_id": test_video_id,
+                "message": "Test video inserted successfully"
+            }
+            
+        except Exception as e:
+            result["operations"]["video_insert"] = {"success": False, "error": str(e)}
+            db.rollback()
+            result["status"] = "failed"
+            return result
+        
+        # Test 4: Insert country relevance
+        try:
+            test_relevance = CountryRelevance(
+                video_id=test_video_id,
+                country="US",
+                relevance_score=0.85,
+                reasoning="Test relevance analysis",
+                confidence_score=0.9,
+                origin_country="US",
+                llm_model="gemini-flash"
+            )
+            db.add(test_relevance)
+            db.commit()
+            
+            result["operations"]["relevance_insert"] = {
+                "success": True,
+                "message": "Country relevance inserted successfully"
+            }
+            
+        except Exception as e:
+            result["operations"]["relevance_insert"] = {"success": False, "error": str(e)}
+            db.rollback()
+        
+        # Test 5: Query test
+        try:
+            query_result = db.query(CountryRelevance).filter(
+                CountryRelevance.video_id == test_video_id
+            ).first()
+            
+            result["operations"]["query_test"] = {
+                "success": query_result is not None,
+                "relevance_score": query_result.relevance_score if query_result else None,
+                "message": "Query successful" if query_result else "Query returned no results"
+            }
+            
+        except Exception as e:
+            result["operations"]["query_test"] = {"success": False, "error": str(e)}
+        
+        # Test 6: Cleanup test data
+        try:
+            db.query(CountryRelevance).filter(CountryRelevance.video_id == test_video_id).delete()
+            db.query(Video).filter(Video.video_id == test_video_id).delete()
+            db.commit()
+            
+            result["operations"]["cleanup"] = {
+                "success": True,
+                "message": "Test data cleaned up successfully"
+            }
+            
+        except Exception as e:
+            result["operations"]["cleanup"] = {"success": False, "error": str(e)}
+            db.rollback()
+        
+        # Overall assessment
+        critical_ops = ["connection", "tables_check", "video_insert", "relevance_insert", "query_test"]
+        failed_ops = [op for op in critical_ops if not result["operations"].get(op, {}).get("success", False)]
+        
+        if not failed_ops:
+            result["status"] = "passed"
+            result["message"] = "All database operations working correctly"
+        else:
+            result["status"] = "failed"
+            result["message"] = f"Failed operations: {failed_ops}"
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Database test error: {e}")
+        return {
+            "test": "database_operations",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "Database test system failure"
+        }
+
+
+@router.get("/test/all")
+async def test_all_systems(db: Session = Depends(get_db)):
+    """
+    Run all system tests in sequence.
+    
+    Tests YouTube API, Gemini API, and database operations.
+    """
+    try:
+        result = {
+            "test": "all_systems",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "testing",
+            "tests": {}
+        }
+        
+        # Run individual tests
+        youtube_result = await test_youtube_api()
+        result["tests"]["youtube"] = youtube_result
+        
+        gemini_result = await test_gemini_api()
+        result["tests"]["gemini"] = gemini_result
+        
+        database_result = await test_database_operations(db)
+        result["tests"]["database"] = database_result
+        
+        # Overall assessment
+        test_results = [
+            result["tests"]["youtube"]["status"],
+            result["tests"]["gemini"]["status"], 
+            result["tests"]["database"]["status"]
+        ]
+        
+        passed_tests = test_results.count("passed")
+        failed_tests = test_results.count("failed")
+        error_tests = test_results.count("error")
+        
+        if failed_tests == 0 and error_tests == 0:
+            result["status"] = "passed"
+            result["message"] = "All systems operational"
+        elif failed_tests > 0:
+            result["status"] = "failed"
+            result["message"] = f"{failed_tests} system(s) failed, {passed_tests} passed"
+        else:
+            result["status"] = "error"
+            result["message"] = f"{error_tests} system(s) had errors, {passed_tests} passed"
+        
+        result["summary"] = {
+            "total_tests": 3,
+            "passed": passed_tests,
+            "failed": failed_tests,
+            "errors": error_tests
+        }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"All systems test error: {e}")
+        return {
+            "test": "all_systems",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "System test failure"
+        }
+
+
 @router.get("/health/live")
 async def liveness_check():
     """
