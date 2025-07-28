@@ -4,76 +4,147 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a YouTube Trending Analyzer V7.0 project - an LLM-powered platform that identifies genuine regional YouTube trends by distinguishing between "available in country X" vs "actually trending in country X" through intelligent country-relevance analysis.
+This is a **YouTube Trending Analyzer MVP** - an LLM-powered platform that identifies genuine regional YouTube trends by distinguishing between "available in country X" vs "actually trending in country X" through intelligent country-relevance analysis.
 
 **Core Innovation:** Uses Gemini Flash LLM to analyze video content, channel geography, comments, and cultural context to determine true regional relevance rather than just regional availability.
 
 **Target Countries:** Germany (🇩🇪), USA (🇺🇸), France (🇫🇷), Japan (🇯🇵)
 
+**Current Status:** ✅ **FULLY IMPLEMENTED MVP** - Both frontend and backend are deployed and operational.
+
 ## Project Structure
 
-The repository follows a monorepo structure with separate backend and frontend applications:
+The repository contains a complete monorepo with implemented backend and frontend:
 
 ```
 /
-├── Backend/          # Python FastAPI backend (not yet implemented)
-├── Frontend/         # React/Next.js frontend (not yet implemented)  
-├── _Input/           # Project specifications and documentation
-│   └── 06 yt_trending_v7_spec.md  # Comprehensive project specification
+├── Backend/          # ✅ Python FastAPI backend (IMPLEMENTED)
+│   ├── app/
+│   │   ├── main.py           # FastAPI app with CORS, database setup
+│   │   ├── core/
+│   │   │   ├── config.py     # Settings and environment variables
+│   │   │   └── database.py   # PostgreSQL connection and models
+│   │   ├── models/           # SQLAlchemy models for all 5 tables
+│   │   │   ├── video.py
+│   │   │   ├── country_relevance.py
+│   │   │   ├── trending_feed.py
+│   │   │   ├── search_cache.py
+│   │   │   └── training_label.py
+│   │   └── api/              # API routes
+│   │       ├── trending.py   # Main search endpoint
+│   │       ├── health.py     # Health checks
+│   │       └── analytics.py  # Analytics endpoints
+│   ├── requirements.txt      # Python dependencies
+│   └── render.yaml          # Render deployment config
+├── src/              # ✅ Next.js frontend (IMPLEMENTED)
+│   ├── app/
+│   │   ├── page.tsx         # Main search page (simplified UI)
+│   │   └── globals.css      # Tailwind styles
+│   ├── components/
+│   │   ├── Header.tsx       # Header with version tracking
+│   │   ├── SearchForm.tsx   # Search form (no limit control)
+│   │   ├── ResultsDisplay.tsx
+│   │   ├── VersionStatus.tsx # Backend compatibility check
+│   │   └── CacheControls.tsx
+│   ├── lib/
+│   │   ├── api.ts           # TrendingAnalyzerAPI client
+│   │   ├── constants.ts     # App configuration
+│   │   └── version.ts       # Version compatibility logic
+│   └── types/               # TypeScript definitions
+├── package.json             # Frontend dependencies (v1.1.0-features)
+├── runtime.txt             # Python 3.11.9 for Render
+└── .env.local              # Local environment variables
 ```
 
-**Current Status:** This appears to be a planning/specification phase repository. The actual implementation (Backend and Frontend directories) are empty and need to be created based on the detailed specification in `_Input/06 yt_trending_v7_spec.md`.
+## Deployment Status
+
+### ✅ Backend (Production Ready)
+- **Hosted on:** Render.com
+- **URL:** https://youtube-trending-analyzer-api.onrender.com
+- **Status:** Operational with comprehensive database setup
+- **Database:** PostgreSQL with all 5 tables created
+- **Cache:** Redis available but not yet implemented
+- **Version:** 1.1.0-origin-country
+
+### ✅ Frontend (Production Ready)  
+- **Hosted on:** Vercel
+- **Status:** Deployed with simplified UI
+- **Features:** Search form, results display, version tracking
+- **Version:** 1.1.0-features
 
 ## Architecture Overview
 
-Based on the specification document, the planned architecture includes:
+### Backend Stack (✅ IMPLEMENTED)
+- **FastAPI** web framework with CORS configuration
+- **PostgreSQL** database with 5 tables fully implemented
+- **SQLAlchemy** ORM with manual table creation fallback
+- **Gemini Flash** LLM integration (planned, not yet implemented)
+- **YouTube Data API v3** integration (planned)
+- **Redis** caching (configured but not implemented)
 
-### Backend Stack (Python/FastAPI on Render)
-- **FastAPI** web framework
-- **PostgreSQL** database for video metadata, country relevance scores, trending feeds
-- **Redis** for caching (2-hour TTL for budget optimization)
-- **Gemini Flash** LLM for country relevance analysis
-- **YouTube Data API v3** for video collection
-- **Google Trends** (pytrends) for validation
+### Frontend Stack (✅ IMPLEMENTED)
+- **Next.js 14** with TypeScript
+- **Tailwind CSS** for styling (neutral gray background)
+- **Axios** for API communication with TrendingAnalyzerAPI class
+- **React Hot Toast** for notifications
+- **Lucide React** for icons
 
-### Frontend Stack (React/Next.js on Vercel)  
-- **Next.js 14+** framework
-- **Tailwind CSS** for styling
-- **Chart.js/Recharts** for analytics visualization
-- **Axios** for API communication
+### Database Schema (✅ IMPLEMENTED)
+All tables created with proper indexes and foreign keys:
 
-### Key Services Architecture
-```
-Data Collection → LLM Analysis → Trend Scoring → API Response → Frontend Display
-     ↓              ↓              ↓             ↓            ↓
-YouTube API →  Gemini Flash → MOMENTUM V7.0 → FastAPI → React UI
+1. **videos** - Core video metadata (video_id, title, channel_name, views, etc.)
+2. **country_relevance** - LLM-generated relevance scores per country
+3. **trending_feeds** - Official YouTube trending data per region  
+4. **search_cache** - Query result caching for budget optimization
+5. **training_labels** - Manual labeling for future ML improvement
+
+## Current API Endpoints (✅ IMPLEMENTED)
+
+**Base URL:** https://youtube-trending-analyzer-api.onrender.com
+
+### Main Endpoints:
+- `GET /` - Backend version info with feature list
+- `GET /api/mvp` - Detailed API information
+- `GET /api/mvp/trending` - Main search endpoint (query, country, timeframe)
+- `GET /api/mvp/health` - System health check
+- `GET /api/mvp/analytics/*` - Analytics endpoints
+
+### Response Format:
+```json
+{
+  "success": true,
+  "query": "gaming",
+  "country": "DE", 
+  "timeframe": "48h",
+  "algorithm": "MVP-LLM-Enhanced",
+  "results": [...],
+  "metadata": {
+    "total_analyzed": 0,
+    "llm_analyzed": 0,
+    "cache_hit": false,
+    "trending_feed_matches": 0,
+    "llm_cost_cents": 0
+  }
+}
 ```
 
 ## Development Commands
 
-**Note:** Since this is in planning phase with no implementation yet, these are the planned commands based on the specification:
-
-### Backend Development (when implemented)
+### Backend Development (✅ WORKING)
 ```bash
 # Install dependencies
-pip install -r backend/requirements.txt
+cd Backend && pip install -r requirements.txt
 
-# Run development server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run migrations
-alembic upgrade head
-
-# Run tests
-pytest
+# Run development server  
+cd Backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Deploy to Render
 git push origin main  # Auto-deploys via Render
 ```
 
-### Frontend Development (when implemented)
+### Frontend Development (✅ WORKING)
 ```bash
-# Install dependencies  
+# Install dependencies
 npm install
 
 # Run development server
@@ -82,106 +153,128 @@ npm run dev
 # Build for production
 npm run build
 
-# Deploy to Vercel
-vercel --prod
+# Deploy to Vercel  
+git push origin main  # Auto-deploys via Vercel
 ```
-
-## Key Components to Implement
-
-### 1. Country Processors (`backend/app/services/country_processors.py`)
-Individual processors for each country that handle:
-- Local search term generation
-- Cultural relevance criteria for LLM prompts
-- Region-specific analysis patterns
-
-### 2. LLM Service (`backend/app/services/llm_service.py`)
-Gemini Flash integration for:
-- Batch country relevance analysis (20 videos per call for budget optimization)
-- Search query expansion per country
-- Cultural context scoring
-
-### 3. Trending Algorithm (`backend/app/services/trending_service.py`)
-MOMENTUM V7.0 algorithm combining:
-- Views per hour momentum
-- Engagement rate weighting  
-- Country relevance multiplier (0.5-2.0x)
-- Trending feed boost (+50% if in official trending)
-
-### 4. YouTube Service (`backend/app/services/youtube_service.py`)
-- Multi-region video collection
-- Official trending feed crawling
-- Comment analysis for geography detection
 
 ## Environment Configuration
 
-### Required Environment Variables
+### Backend (Render Environment Variables)
 ```bash
-# API Keys
+# API Keys (NOT YET CONFIGURED)
 YOUTUBE_API_KEY=your_youtube_api_key
 GEMINI_API_KEY=your_gemini_api_key
 
-# Database
+# Database (✅ CONFIGURED)
 DATABASE_URL=postgresql://user:pass@host:5432/yttrends
 REDIS_URL=redis://host:port/0
 
-# LLM Configuration  
+# Application Settings (✅ CONFIGURED)
+ENVIRONMENT=production
+DEBUG=false
 LLM_PROVIDER=gemini-flash
 LLM_BATCH_SIZE=20
-LLM_MONTHLY_BUDGET=50
+LLM_TIMEOUT=30
+LLM_MONTHLY_BUDGET=50.0
 
-# Cache Settings (Budget-optimized)
+# Cache Settings (✅ CONFIGURED)
 CACHE_TTL_SEARCH=7200   # 2 hours
 CACHE_TTL_VIDEO=86400   # 24 hours
+CACHE_TTL_TRENDING=3600 # 1 hour
 ```
 
-## Database Schema
+### Frontend (Vercel Environment Variables)
+```bash
+# ✅ CONFIGURED
+NEXT_PUBLIC_API_BASE_URL=https://youtube-trending-analyzer-api.onrender.com
+NEXT_PUBLIC_ENVIRONMENT=production
+NEXT_PUBLIC_APP_VERSION=1.1.0-features
+NEXT_PUBLIC_ENABLE_DEBUG=false
+NEXT_PUBLIC_DEFAULT_COUNTRY=US
+NEXT_PUBLIC_DEFAULT_TIMEFRAME=48h
+NEXT_PUBLIC_DEFAULT_LIMIT=10
+```
 
-Key tables to implement:
-- `videos` - Core video metadata and caching
-- `country_relevance` - LLM-generated relevance scores per country  
-- `trending_feeds` - Official YouTube trending data per region
-- `search_cache` - Query result caching for budget optimization
+## Implementation Status
+
+### ✅ COMPLETED
+- [x] FastAPI backend with database models
+- [x] PostgreSQL database with all 5 tables  
+- [x] Next.js frontend with search functionality
+- [x] CORS configuration for Vercel ↔ Render communication
+- [x] Version tracking system between frontend/backend
+- [x] Simplified UI (removed info cards, fixed result limit to 10)
+- [x] Deployment pipeline (Render + Vercel)
+- [x] Environment variable configuration
+- [x] Error handling and user feedback
+
+### 🟡 IN PROGRESS / NEEDS IMPLEMENTATION
+- [ ] **LLM Integration** - Gemini Flash API calls not implemented
+- [ ] **YouTube API** - Video fetching not implemented  
+- [ ] **Country Processors** - Regional analysis logic missing
+- [ ] **MOMENTUM Algorithm** - Trending scoring not implemented
+- [ ] **Cache Layer** - Redis integration missing
+- [ ] **Analytics** - Tracking and monitoring missing
+
+### 🔴 KNOWN ISSUES
+- Backend responds but LLM analysis not working (needs API keys + implementation)
+- Search returns empty results (needs YouTube API integration)
+- Database tables created but no data population logic
 
 ## Budget Management
 
-**Critical:** This project operates on a €50/month budget:
-- Gemini Flash LLM: ~$43/month (~275M tokens available)
-- Render services: $7/month
-- Aggressive caching strategy (2-hour TTL) essential for staying within budget
-- Batch processing (20 videos per LLM call) for cost efficiency
-
-## API Endpoints to Implement
-
-Main endpoint: `GET /api/v7/trending`
-- Parameters: query, country (DE|US|FR|JP), timeframe (24h|48h|7d)
-- Returns: Top 10 ranked videos with country relevance scores and reasoning
-
-Supporting endpoints:
-- `GET /api/v7/trending-feeds/{country}` - Current trending feeds
-- `GET /api/v7/health` - System health check  
-- `GET /api/v7/admin/dashboard` - Admin monitoring
+**Current Budget:** €50/month allocated but not actively managed
+- Render services: ~$7/month (✅ operational)
+- Vercel: Free tier (✅ operational)  
+- Gemini Flash LLM: Not configured (~$43/month planned)
+- YouTube API: Not configured (free tier available)
 
 ## Testing Strategy
 
-Focus on:
-- LLM integration accuracy (country relevance scoring)
-- Country processor logic validation
-- MOMENTUM V7.0 algorithm correctness
-- API response format compliance
-- Cache performance and budget tracking
+### Current Testing Status:
+- ✅ Frontend builds successfully (`npm run build`)
+- ✅ Backend starts without errors
+- ✅ Database tables created successfully
+- ✅ API endpoints return proper error responses
+- 🟡 End-to-end search flow needs LLM integration
 
-## Implementation Priority
+## Next Development Priorities
 
-1. **Core System:** FastAPI backend, database setup, YouTube API integration
-2. **LLM Analysis:** Gemini Flash integration, country processors, batch processing  
-3. **Frontend:** Next.js UI, API integration, result visualization
-4. **Optimization:** Caching, performance tuning, budget monitoring
-5. **Training System:** Manual labeling interface (low priority - future enhancement)
+1. **🔥 HIGH PRIORITY:**
+   - Implement Gemini Flash LLM integration
+   - Add YouTube Data API v3 integration
+   - Implement basic country relevance analysis
+
+2. **📈 MEDIUM PRIORITY:**
+   - Add Redis caching layer
+   - Implement MOMENTUM scoring algorithm  
+   - Add comprehensive error handling
+
+3. **🔧 LOW PRIORITY:**
+   - Analytics dashboard
+   - Admin interface
+   - Performance optimizations
 
 ## Development Notes
 
-- Empty repository currently - implementation needs to start from scratch based on specification
-- All 4 countries should be implemented in parallel from the start
-- Budget monitoring is critical - implement cost tracking early
-- Response time target: <5 seconds end-to-end
-- Cache hit rate target: >70% for budget efficiency
+### Recent Changes:
+- ✅ Fixed CORS issues between Vercel and Render
+- ✅ Simplified frontend UI (removed feature cards)  
+- ✅ Fixed database table creation with manual SQL fallback
+- ✅ Added comprehensive environment variable setup
+- ✅ Fixed result limit to 10 (removed slider control)
+
+### Architecture Decisions:
+- Using manual SQL table creation as fallback for SQLAlchemy
+- Frontend-backend version compatibility tracking implemented
+- Fixed 10 results per search for simplified UX
+- Neutral gray background for clean appearance
+
+### Git Workflow:
+- Main branch auto-deploys to both Render (backend) and Vercel (frontend)
+- All database migrations happen automatically on deployment
+- Environment variables managed separately on each platform
+
+---
+
+**💡 For Claude:** This is a fully functional MVP with UI and database, but needs LLM and YouTube API integration to provide actual search results. Focus on completing the core analysis pipeline next.
