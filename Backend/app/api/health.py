@@ -241,6 +241,100 @@ async def readiness_check(db: Session = Depends(get_db)):
         )
 
 
+@router.get("/health/database")
+async def database_details(db: Session = Depends(get_db)):
+    """
+    Detailed database health and table information.
+    
+    Checks database connectivity and lists all tables with their structure.
+    Useful for debugging table creation issues.
+    
+    **Returns:**
+    - Database connection status
+    - List of existing tables
+    - Table creation verification
+    """
+    try:
+        from sqlalchemy import text
+        
+        # Test basic connection
+        db_connected = DatabaseHealthCheck.check_connection()
+        
+        result = {
+            "database_connected": db_connected,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "tables": {},
+            "required_tables": ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels"]
+        }
+        
+        if not db_connected:
+            result["error"] = "Database connection failed"
+            return result
+        
+        # Get list of all tables
+        try:
+            tables_query = text("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                ORDER BY table_name
+            """)
+            tables_result = db.execute(tables_query).fetchall()
+            existing_tables = [row[0] for row in tables_result]
+            result["existing_tables"] = existing_tables
+            
+            # Check each required table specifically
+            for table_name in result["required_tables"]:
+                table_exists = table_name in existing_tables
+                result["tables"][table_name] = {
+                    "exists": table_exists,
+                    "status": "✅ OK" if table_exists else "❌ MISSING"
+                }
+                
+                # If table exists, get column information
+                if table_exists:
+                    try:
+                        columns_query = text(f"""
+                            SELECT column_name, data_type, is_nullable, column_default
+                            FROM information_schema.columns 
+                            WHERE table_name = '{table_name}' AND table_schema = 'public'
+                            ORDER BY ordinal_position
+                        """)
+                        columns_result = db.execute(columns_query).fetchall()
+                        result["tables"][table_name]["columns"] = [
+                            {
+                                "name": row[0],
+                                "type": row[1], 
+                                "nullable": row[2] == "YES",
+                                "default": row[3]
+                            } for row in columns_result
+                        ]
+                        result["tables"][table_name]["column_count"] = len(columns_result)
+                    except Exception as col_error:
+                        result["tables"][table_name]["column_error"] = str(col_error)
+            
+            # Overall assessment
+            missing_tables = [name for name, info in result["tables"].items() if not info["exists"]]
+            result["missing_tables"] = missing_tables
+            result["tables_missing_count"] = len(missing_tables)
+            result["status"] = "healthy" if len(missing_tables) == 0 else "missing_tables"
+            result["message"] = "All required tables exist" if len(missing_tables) == 0 else f"Missing tables: {', '.join(missing_tables)}"
+            
+        except Exception as e:
+            result["error"] = f"Failed to query table information: {str(e)}"
+            result["status"] = "error"
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Database details check error: {e}")
+        return {
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "Database details check failed"
+        }
+
+
 @router.get("/health/live")
 async def liveness_check():
     """

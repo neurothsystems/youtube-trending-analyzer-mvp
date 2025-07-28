@@ -26,10 +26,19 @@ async def lifespan(app: FastAPI):
     
     # Create database tables (skip if they already exist)
     try:
-        Base.metadata.create_all(bind=engine, checkfirst=True)
-        logger.info("Database tables initialized successfully")
+        # First, test database connection
+        logger.info("Testing database connection...")
+        with engine.connect() as test_conn:
+            result = test_conn.execute(text("SELECT 1"))
+            logger.info(f"Database connection successful: {result.scalar()}")
         
-        # Manual table creation for missing tables
+        # Try SQLAlchemy table creation first
+        logger.info("Attempting SQLAlchemy table creation...")
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("SQLAlchemy table creation completed")
+        
+        # Manual table creation for missing tables with detailed logging
+        logger.info("Starting manual table creation verification...")
         from sqlalchemy import text
         with engine.connect() as conn:
             # Create all tables step by step if they don't exist
@@ -145,20 +154,70 @@ async def lifespan(app: FastAPI):
                 }
             ]
             
+            # First, check which tables already exist
+            logger.info("Checking existing tables...")
+            try:
+                existing_tables = conn.execute(text("""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                """)).fetchall()
+                existing_table_names = [row[0] for row in existing_tables]
+                logger.info(f"Existing tables: {existing_table_names}")
+            except Exception as e:
+                logger.warning(f"Could not check existing tables: {e}")
+                existing_table_names = []
+            
+            # Create tables one by one with detailed logging
             for table in tables_to_create:
+                table_name = table['name']
                 try:
-                    logger.info(f"Creating table {table['name']} if not exists...")
+                    if table_name in existing_table_names:
+                        logger.info(f"Table {table_name} already exists, skipping creation")
+                        continue
+                        
+                    logger.info(f"Creating table {table_name}...")
                     conn.execute(text(table['sql']))
+                    logger.info(f"Table {table_name} created successfully")
                     
                     # Create indexes
-                    for index_sql in table['indexes']:
-                        conn.execute(text(index_sql))
+                    logger.info(f"Creating indexes for table {table_name}...")
+                    for i, index_sql in enumerate(table['indexes']):
+                        try:
+                            conn.execute(text(index_sql))
+                            logger.info(f"Index {i+1}/{len(table['indexes'])} created for {table_name}")
+                        except Exception as idx_error:
+                            logger.warning(f"Error creating index {i+1} for {table_name}: {idx_error}")
                     
                     conn.commit()
-                    logger.info(f"Table {table['name']} created successfully")
+                    logger.info(f"✅ Table {table_name} and indexes committed successfully")
+                    
                 except Exception as e:
-                    logger.warning(f"Error creating table {table['name']}: {e}")
-                    conn.rollback()
+                    logger.error(f"❌ Error creating table {table_name}: {e}")
+                    logger.error(f"SQL that failed: {table['sql'][:200]}...")
+                    try:
+                        conn.rollback()
+                        logger.info(f"Rollback successful for {table_name}")
+                    except Exception as rollback_error:
+                        logger.error(f"Rollback failed for {table_name}: {rollback_error}")
+            
+            # Final verification - check which tables exist after creation
+            logger.info("Final table verification...")
+            try:
+                final_tables = conn.execute(text("""
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                """)).fetchall()
+                final_table_names = [row[0] for row in final_tables]
+                logger.info(f"Final tables in database: {final_table_names}")
+                
+                # Check specifically for country_relevance table
+                if 'country_relevance' in final_table_names:
+                    logger.info("✅ country_relevance table exists!")
+                else:
+                    logger.error("❌ country_relevance table is missing!")
+                    
+            except Exception as e:
+                logger.error(f"Final verification failed: {e}")
                 
     except Exception as e:
         logger.warning(f"Database initialization warning (tables may already exist): {e}")
