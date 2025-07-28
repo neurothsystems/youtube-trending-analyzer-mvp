@@ -7,6 +7,13 @@ from app.core.database import engine
 from app.models import Base
 from app.api import trending, health, analytics
 
+# Import all models to ensure they are registered with Base
+from app.models.video import Video
+from app.models.country_relevance import CountryRelevance
+from app.models.trending_feed import TrendingFeed
+from app.models.search_cache import SearchCache
+from app.models.training_label import TrainingLabel
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
