@@ -17,8 +17,13 @@ async def lifespan(app: FastAPI):
     logger.info("Starting YouTube Trending Analyzer MVP")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     
-    # Create database tables
-    Base.metadata.create_all(bind=engine)
+    # Create database tables (skip if they already exist)
+    try:
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("Database tables initialized successfully")
+    except Exception as e:
+        logger.warning(f"Database initialization warning (tables may already exist): {e}")
+        # Continue startup even if tables already exist
     
     yield
     
