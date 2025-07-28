@@ -82,15 +82,30 @@ app = FastAPI(
 )
 
 # CORS middleware configuration
+allowed_origins = []
+if settings.DEBUG:
+    allowed_origins = ["*"]
+else:
+    # Production CORS - allow specific domains
+    allowed_origins = [
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "https://youtube-trending-analyzer-mvp-frontend.vercel.app",
+        "https://youtube-trending-analyzer-mvp.vercel.app",
+        "https://youtube-trending-analyzer.vercel.app"
+    ]
+    
+    # Also allow any vercel.app subdomain for this project
+    import re
+    def is_vercel_app(origin):
+        return re.match(r"https://[a-zA-Z0-9-]+-[a-zA-Z0-9-]+-[a-zA-Z0-9-]+\.vercel\.app$", origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.DEBUG else [
-        "http://localhost:3000",
-        "https://*.vercel.app",
-        "https://*.vercel.com"
-    ],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app$" if not settings.DEBUG else None,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
