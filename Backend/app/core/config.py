@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings
 from typing import List, Optional
 import os
 
@@ -49,10 +49,9 @@ class Settings(BaseSettings):
     MAX_RESPONSE_TIME: float = 5.0  # seconds
     TARGET_CACHE_HIT_RATE: float = 0.70  # 70%
     
-    model_config = {
-        "env_file": ".env",
-        "case_sensitive": True
-    }
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
 
 
 # Create global settings instance
