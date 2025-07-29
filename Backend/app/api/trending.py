@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 from app.core.database import get_db
-from app.core.config import validate_country, validate_timeframe, get_country_name
+from app.core.config import validate_country, validate_timeframe, normalize_timeframe, get_country_name
 from app.services.trending_service import trending_service
 from app.services.youtube_service import youtube_service
 from app.core.redis import CacheManager
@@ -17,7 +17,7 @@ router = APIRouter()
 async def get_trending_videos(
     query: str = Query(..., description="Search term for trending analysis", min_length=2, max_length=100),
     country: str = Query(..., description="Country code (DE, US, FR, JP)"),
-    timeframe: str = Query(..., description="Time period (24h, 48h, 7d)"),
+    timeframe: str = Query(..., description="Time period: 24h/48h/7d (also accepts: 24, 48, 7, 1d, 2d, 1w, week)"),
     limit: int = Query(10, description="Number of results to return", ge=1, le=50),
     db: Session = Depends(get_db)
 ):
@@ -30,7 +30,7 @@ async def get_trending_videos(
     **Parameters:**
     - **query**: Search term (e.g., "AI", "gaming", "music")
     - **country**: Country code - DE (Germany), US (USA), FR (France), JP (Japan)
-    - **timeframe**: Time period - 24h, 48h, or 7d
+    - **timeframe**: Time period - Flexible format: `24h`, `48h`, `7d` (also accepts `24`, `48`, `7`, `1d`, `2d`, `1w`, `week`)
     - **limit**: Number of results to return (1-50, default: 10)
     
     **Returns:**
@@ -43,6 +43,9 @@ async def get_trending_videos(
         query = query.strip()
         country = country.upper()
         
+        # Normalize user input for better UX
+        timeframe = normalize_timeframe(timeframe)
+        
         if not validate_country(country):
             raise HTTPException(
                 status_code=400,
@@ -52,7 +55,7 @@ async def get_trending_videos(
         if not validate_timeframe(timeframe):
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported timeframe: {timeframe}. Supported: 24h, 48h, 7d"
+                detail=f"Unsupported timeframe: {timeframe}. Supported: 24h, 48h, 7d (hint: you can also use '24', '48', '7' without the suffix)"
             )
         
         # Log request

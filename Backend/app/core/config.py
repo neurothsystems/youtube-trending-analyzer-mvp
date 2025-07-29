@@ -84,6 +84,43 @@ def validate_country(country: str) -> bool:
     return country in settings.SUPPORTED_COUNTRIES
 
 
+def normalize_timeframe(timeframe: str) -> str:
+    """
+    Normalize timeframe input to supported format.
+    
+    Converts user-friendly inputs to standard format:
+    - "24" -> "24h"
+    - "48" -> "48h" 
+    - "7" -> "7d"
+    - "1d" -> "24h"
+    - "2d" -> "48h"
+    - "1w" -> "7d"
+    - "week" -> "7d"
+    """
+    timeframe = timeframe.lower().strip()
+    
+    # Direct mapping for common variations
+    timeframe_map = {
+        "24": "24h",
+        "48": "48h", 
+        "7": "7d",
+        "1d": "24h",
+        "2d": "48h",
+        "1w": "7d",
+        "week": "7d",
+        "day": "24h",
+        "2days": "48h"
+    }
+    
+    # Check if it's a mapped value
+    if timeframe in timeframe_map:
+        return timeframe_map[timeframe]
+    
+    # Return as-is if already in correct format
+    return timeframe
+
+
 def validate_timeframe(timeframe: str) -> bool:
-    """Validate if timeframe is supported."""
-    return timeframe in settings.SUPPORTED_TIMEFRAMES
+    """Validate if timeframe is supported (after normalization)."""
+    normalized = normalize_timeframe(timeframe)
+    return normalized in settings.SUPPORTED_TIMEFRAMES
