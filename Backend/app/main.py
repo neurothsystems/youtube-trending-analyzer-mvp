@@ -41,7 +41,9 @@ async def lifespan(app: FastAPI):
         # Manual table creation for missing tables with detailed logging
         logger.info("Starting manual table creation verification...")
         from sqlalchemy import text
-        with engine.connect() as conn:
+        
+        # Use a transaction to ensure all-or-nothing table creation
+        with engine.begin() as conn:
             # Create all tables step by step if they don't exist
             tables_to_create = [
                 {
@@ -82,8 +84,7 @@ async def lifespan(app: FastAPI):
                             origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
                             analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                             llm_model VARCHAR(50) DEFAULT 'gemini-flash',
-                            PRIMARY KEY (video_id, country),
-                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                            PRIMARY KEY (video_id, country)
                         );
                     """,
                     'indexes': [
@@ -101,8 +102,7 @@ async def lifespan(app: FastAPI):
                             country VARCHAR(2) NOT NULL,
                             trending_rank INTEGER,
                             category VARCHAR(50),
-                            captured_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                            captured_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                         );
                     """,
                     'indexes': [
@@ -142,8 +142,7 @@ async def lifespan(app: FastAPI):
                             relevance_score FLOAT,
                             reasoning TEXT,
                             labeled_by VARCHAR(50) DEFAULT 'admin',
-                            labeled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+                            labeled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                         );
                     """,
                     'indexes': [
@@ -168,7 +167,7 @@ async def lifespan(app: FastAPI):
                 logger.warning(f"Could not check existing tables: {e}")
                 existing_table_names = []
             
-            # Create tables one by one with detailed logging
+            # Create tables one by one with detailed logging and better error handling
             for table in tables_to_create:
                 table_name = table['name']
                 try:
@@ -177,29 +176,28 @@ async def lifespan(app: FastAPI):
                         continue
                         
                     logger.info(f"Creating table {table_name}...")
+                    
+                    # Execute table creation SQL with proper error handling
                     conn.execute(text(table['sql']))
                     logger.info(f"Table {table_name} created successfully")
                     
-                    # Create indexes
+                    # Create indexes with individual error handling
                     logger.info(f"Creating indexes for table {table_name}...")
                     for i, index_sql in enumerate(table['indexes']):
                         try:
                             conn.execute(text(index_sql))
                             logger.info(f"Index {i+1}/{len(table['indexes'])} created for {table_name}")
                         except Exception as idx_error:
-                            logger.warning(f"Error creating index {i+1} for {table_name}: {idx_error}")
+                            logger.warning(f"Non-critical: Error creating index {i+1} for {table_name}: {idx_error}")
+                            # Continue with other indexes even if one fails
                     
-                    conn.commit()
-                    logger.info(f"✅ Table {table_name} and indexes committed successfully")
+                    logger.info(f"✅ Table {table_name} and indexes processed successfully")
                     
                 except Exception as e:
                     logger.error(f"❌ Error creating table {table_name}: {e}")
                     logger.error(f"SQL that failed: {table['sql'][:200]}...")
-                    try:
-                        conn.rollback()
-                        logger.info(f"Rollback successful for {table_name}")
-                    except Exception as rollback_error:
-                        logger.error(f"Rollback failed for {table_name}: {rollback_error}")
+                    # Since we're using engine.begin(), the transaction will automatically rollback on exception
+                    raise  # Re-raise to trigger transaction rollback
             
             # Final verification - check which tables exist after creation
             logger.info("Final table verification...")
@@ -211,18 +209,80 @@ async def lifespan(app: FastAPI):
                 final_table_names = [row[0] for row in final_tables]
                 logger.info(f"Final tables in database: {final_table_names}")
                 
-                # Check specifically for country_relevance table
-                if 'country_relevance' in final_table_names:
-                    logger.info("✅ country_relevance table exists!")
+                # Check all required tables
+                required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels"]
+                missing_tables = [t for t in required_tables if t not in final_table_names]
+                
+                if not missing_tables:
+                    logger.info("✅ All required tables exist successfully!")
                 else:
-                    logger.error("❌ country_relevance table is missing!")
+                    logger.error(f"❌ Missing tables after creation: {missing_tables}")
+                    
+                # Special check for country_relevance table
+                if 'country_relevance' in final_table_names:
+                    logger.info("✅ country_relevance table verified!")
+                else:
+                    logger.error("❌ country_relevance table is missing - this will break search functionality!")
                     
             except Exception as e:
                 logger.error(f"Final verification failed: {e}")
                 
+        # If we get here, the transaction was successful
+        logger.info("✅ Database table creation transaction completed successfully")
+                
     except Exception as e:
-        logger.warning(f"Database initialization warning (tables may already exist): {e}")
-        # Continue startup even if tables already exist
+        logger.error(f"❌ Database table creation failed: {e}")
+        
+        # Fallback: Try to create critical tables individually
+        logger.info("🔄 Attempting fallback: Creating critical tables individually...")
+        try:
+            with engine.connect() as fallback_conn:
+                # Create the most critical table (country_relevance) first
+                critical_tables = [
+                    ("videos", """
+                        CREATE TABLE IF NOT EXISTS videos (
+                            video_id VARCHAR(20) PRIMARY KEY,
+                            title TEXT NOT NULL,
+                            channel_name VARCHAR(255),
+                            channel_country VARCHAR(2),
+                            views INTEGER DEFAULT 0,
+                            likes INTEGER DEFAULT 0,
+                            comments INTEGER DEFAULT 0,
+                            upload_date TIMESTAMP WITH TIME ZONE,
+                            last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            duration INTEGER,
+                            thumbnail_url TEXT,
+                            description TEXT,
+                            tags JSON
+                        );
+                    """),
+                    ("country_relevance", """
+                        CREATE TABLE IF NOT EXISTS country_relevance (
+                            video_id VARCHAR(20) NOT NULL,
+                            country VARCHAR(2) NOT NULL,
+                            relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+                            reasoning TEXT,
+                            confidence_score FLOAT CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
+                            origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
+                            analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            llm_model VARCHAR(50) DEFAULT 'gemini-flash',
+                            PRIMARY KEY (video_id, country)
+                        );
+                    """)
+                ]
+                
+                for table_name, table_sql in critical_tables:
+                    try:
+                        fallback_conn.execute(text(table_sql))
+                        fallback_conn.commit()
+                        logger.info(f"✅ Fallback creation successful for {table_name}")
+                    except Exception as fallback_error:
+                        logger.error(f"❌ Fallback creation failed for {table_name}: {fallback_error}")
+                        
+        except Exception as fallback_exception:
+            logger.error(f"❌ Fallback table creation completely failed: {fallback_exception}")
+        
+        # Continue startup even if table creation fails (they might already exist)
     
     yield
     
@@ -290,9 +350,9 @@ async def root():
     """Root endpoint returning API information."""
     return {
         "message": "YouTube Trending Analyzer MVP API",
-        "version": "1.1.0-origin-country",
+        "version": "1.1.1-db-fix",
         "build_info": {
-            "commit": "eb10e19",
+            "commit": "db-fix-improved-transactions",
             "features": [
                 "origin_country_detection",
                 "multi_tier_search",
@@ -312,8 +372,8 @@ async def root():
 async def api_info():
     """API information endpoint."""
     return {
-        "api_version": "1.1.0-origin-country",
-        "build_commit": "eb10e19",
+        "api_version": "1.1.1-db-fix",
+        "build_commit": "db-fix-improved-transactions",
         "algorithm": "MVP-LLM-Enhanced",
         "llm_provider": "gemini-flash",
         "active_features": {
