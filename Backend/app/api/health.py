@@ -1101,6 +1101,54 @@ async def debug_youtube_search():
         }
 
 
+@router.get("/debug/llm-service")
+async def debug_llm_service():
+    """Debug LLM service with a simple test."""
+    from app.services.llm_service import llm_service
+    
+    debug_info = {
+        "debug": "llm_service_direct_test",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "llm_available": llm_service._is_available(),
+        "model_info": str(llm_service.model) if llm_service.model else "No model",
+        "cost_info": llm_service.get_cost_info()
+    }
+    
+    # Test with minimal video data
+    test_videos = [
+        {
+            "video_id": "test123",
+            "title": "German Gaming Video Test",
+            "channel_name": "TestChannel DE", 
+            "description": "Ein deutsches Gaming Video für Tests",
+            "views": 1000,
+            "upload_date": "2025-01-01T12:00:00Z"
+        }
+    ]
+    
+    try:
+        # Direct LLM test
+        debug_info["llm_test"] = {
+            "input_videos": len(test_videos),
+            "target_country": "DE"
+        }
+        
+        results = llm_service.analyze_country_relevance_batch(test_videos, "DE")
+        
+        debug_info["llm_test"]["success"] = len(results) > 0
+        debug_info["llm_test"]["results_count"] = len(results)
+        debug_info["llm_test"]["results"] = results
+        
+    except Exception as e:
+        debug_info["llm_test"] = {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+    
+    return debug_info
+
+
 @router.get("/debug/trending-service")
 async def debug_trending_service(db: Session = Depends(get_db)):
     """
