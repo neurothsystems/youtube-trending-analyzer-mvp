@@ -59,8 +59,7 @@ class YouTubeService:
                 maxResults=min(max_results, settings.YOUTUBE_MAX_RESULTS),
                 publishedAfter=published_after_str,
                 order='relevance',
-                videoDuration='any',
-                videoEmbeddable='true'
+                videoDuration='any'
             )
             
             response = request.execute()

@@ -264,7 +264,7 @@ async def database_details(db: Session = Depends(get_db)):
             "database_connected": db_connected,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "tables": {},
-            "required_tables": ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels"]
+            "required_tables": ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels", "llm_usage_log"]
         }
         
         if not db_connected:
@@ -369,7 +369,6 @@ async def test_youtube_api():
         # Test 2: Simple search test
         try:
             # Test with popular current terms and extend timeframe for testing
-            from datetime import datetime, timezone, timedelta
             test_published_after = datetime.now(timezone.utc) - timedelta(days=30)  # 30 days instead of 7
             test_videos = youtube_service.search_videos("gaming", "US", max_results=5, published_after=test_published_after)
             result["search_test"] = {
