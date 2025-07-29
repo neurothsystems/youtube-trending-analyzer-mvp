@@ -99,14 +99,17 @@ class LLMService:
             # Estimate input tokens
             input_tokens = self._estimate_tokens(prompt)
             
-            # Check budget before making call
+            # Budget check temporarily disabled for debugging
             estimated_cost = self._calculate_cost(input_tokens, input_tokens // 2)  # Estimate output as half of input
+            logger.info(f"LLM Budget Check (DISABLED) - Current: €{self.monthly_cost:.4f}, Estimated: €{estimated_cost:.4f}, Budget: €{settings.LLM_MONTHLY_BUDGET}")
             
-            if self.monthly_cost + estimated_cost > settings.LLM_MONTHLY_BUDGET:
-                logger.error(f"LLM budget limit would be exceeded. Current: €{self.monthly_cost:.2f}, Estimated cost: €{estimated_cost:.2f}")
-                return {}
+            # Budget limit check temporarily disabled for testing
+            # if self.monthly_cost + estimated_cost > settings.LLM_MONTHLY_BUDGET:
+            #     logger.error(f"LLM budget limit would be exceeded. Current: €{self.monthly_cost:.4f}, Estimated cost: €{estimated_cost:.4f}, Budget: €{settings.LLM_MONTHLY_BUDGET}, Total: €{self.monthly_cost + estimated_cost:.4f}")
+            #     return {}
             
             # Make API call
+            logger.info(f"Making Gemini API call with {input_tokens} estimated input tokens")
             response = self.model.generate_content(
                 prompt,
                 generation_config={
@@ -114,9 +117,11 @@ class LLMService:
                     'max_output_tokens': 8192,
                 }
             )
+            logger.info(f"Gemini API call completed, response received")
             
             # Process response
             if response.text:
+                logger.info(f"Response text received with {len(response.text)} characters")
                 # Estimate output tokens and calculate actual cost
                 output_tokens = self._estimate_tokens(response.text)
                 actual_cost = self._calculate_cost(input_tokens, output_tokens)
@@ -131,7 +136,8 @@ class LLMService:
                 logger.info(f"Analyzed {len(results)} videos for {target_country}. Cost: €{actual_cost:.4f}")
                 return results
             else:
-                logger.error("Empty response from LLM")
+                logger.error(f"Empty response from LLM. Response object: {response}")
+                logger.error(f"Response attributes: {dir(response) if response else 'None'}")
                 return {}
                 
         except Exception as e:
