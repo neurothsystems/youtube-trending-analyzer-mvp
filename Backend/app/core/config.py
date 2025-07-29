@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini-flash"
     LLM_BATCH_SIZE: int = 20
     LLM_TIMEOUT: int = 30
-    LLM_MONTHLY_BUDGET: float = 50.0  # Budget in EUR
+    LLM_MONTHLY_BUDGET: float = 500.0  # Budget in EUR (increased for testing)
     
     # Cache Configuration (Budget-optimized)
     CACHE_TTL_SEARCH: int = 7200   # 2 hours
