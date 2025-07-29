@@ -50,6 +50,11 @@ def get_db() -> Session:
         db.close()
 
 
+def get_db_session():
+    """Get database session context manager for direct usage."""
+    return SessionLocal()
+
+
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     """Set SQLite pragmas for better performance (only for SQLite)."""

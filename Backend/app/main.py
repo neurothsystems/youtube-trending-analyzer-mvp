@@ -14,6 +14,7 @@ from app.models.country_relevance import CountryRelevance
 from app.models.trending_feed import TrendingFeed
 from app.models.search_cache import SearchCache
 from app.models.training_label import TrainingLabel
+from app.models.llm_usage_log import LLMUsageLog
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

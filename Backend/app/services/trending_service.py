@@ -261,7 +261,7 @@ class TrendingService:
             missing_videos = [v for v in videos if v['video_id'] in missing_video_ids]
             
             # Get LLM analysis for missing videos
-            llm_results = llm_service.analyze_country_relevance_batch(missing_videos, country)
+            llm_results = llm_service.analyze_country_relevance_batch(missing_videos, country, query)
             results.update(llm_results)
             
             # Store LLM results in database

@@ -6,6 +6,7 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
 import re
+import uuid
 from app.core.config import settings
 from app.core.redis import cache, get_llm_cache_key
 
@@ -33,9 +34,9 @@ class LLMService:
                 HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
             }
             
-            # Initialize Gemini Flash model
+            # Initialize Gemini 2.5 Flash-Lite model (50% cost savings)
             self.model = genai.GenerativeModel(
-                'gemini-1.5-flash',
+                'gemini-2.5-flash-lite',
                 safety_settings=safety_settings
             )
             
@@ -55,16 +56,33 @@ class LLMService:
         return self.model is not None
     
     def _estimate_tokens(self, text: str) -> int:
-        """Estimate token count for text (rough approximation)."""
+        """Estimate token count for text (rough approximation - fallback only)."""
         # Rough estimation: ~4 characters per token for mixed content
         return len(text) // 4
     
+    def _count_tokens_precisely(self, text: str) -> int:
+        """Count tokens precisely using Gemini's count_tokens API."""
+        if not self._is_available():
+            # Fallback to estimation if model not available
+            return self._estimate_tokens(text)
+        
+        try:
+            response = self.model.count_tokens(text)
+            return response.total_tokens
+        except Exception as e:
+            logger.warning(f"Precise token counting failed, using estimation: {e}")
+            return self._estimate_tokens(text)
+    
     def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
-        """Calculate cost for Gemini Flash API call."""
-        # Gemini Flash pricing: $0.20 per 1M tokens (as of spec)
-        cost_per_token = 0.20 / 1_000_000
-        total_tokens = input_tokens + output_tokens
-        return total_tokens * cost_per_token
+        """Calculate cost for Gemini 2.5 Flash-Lite API call with differential pricing."""
+        # Gemini 2.5 Flash-Lite pricing: $0.10/1M input, $0.40/1M output
+        input_cost_per_token = 0.10 / 1_000_000
+        output_cost_per_token = 0.40 / 1_000_000
+        
+        input_cost = input_tokens * input_cost_per_token
+        output_cost = output_tokens * output_cost_per_token
+        
+        return input_cost + output_cost
     
     def _track_cost(self, cost: float):
         """Track API costs for budget monitoring."""
@@ -74,7 +92,40 @@ class LLMService:
         if self.monthly_cost > settings.LLM_MONTHLY_BUDGET:
             logger.warning(f"Monthly LLM budget exceeded: €{self.monthly_cost:.2f} / €{settings.LLM_MONTHLY_BUDGET}")
     
-    def analyze_country_relevance_batch(self, videos: List[Dict], target_country: str) -> Dict[str, Dict]:
+    def _log_usage_to_database(self, request_id: str, input_tokens: int, output_tokens: int, 
+                              cost_usd: float, country: str = None, query: str = None,
+                              video_count: int = None, processing_time_ms: int = None,
+                              cache_hit: str = 'false'):
+        """Log LLM usage to database for analytics."""
+        try:
+            from app.core.database import get_db_session
+            from app.models.llm_usage_log import LLMUsageLog
+            
+            # Create usage log entry
+            usage_log = LLMUsageLog(
+                request_id=request_id,
+                model_name="gemini-2.5-flash-lite",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost_usd,
+                country=country,
+                query=query[:255] if query else None,  # Truncate to fit column
+                video_count=video_count,
+                processing_time_ms=processing_time_ms,
+                cache_hit=cache_hit
+            )
+            
+            # Save to database
+            with get_db_session() as db:
+                db.add(usage_log)
+                db.commit()
+                logger.debug(f"LLM usage logged to database: {request_id}")
+                
+        except Exception as e:
+            logger.error(f"Failed to log LLM usage to database: {e}")
+            # Don't raise - logging failure shouldn't break the main flow
+    
+    def analyze_country_relevance_batch(self, videos: List[Dict], target_country: str, query: str = None) -> Dict[str, Dict]:
         """Analyze country relevance for a batch of videos (budget optimized)."""
         if not self._is_available():
             logger.error("LLM service not available")
@@ -83,6 +134,10 @@ class LLMService:
         if not videos:
             return {}
         
+        # Generate request ID for tracking
+        request_id = str(uuid.uuid4())
+        start_time = datetime.now(timezone.utc)
+        
         # Check cache first
         video_ids = [v['video_id'] for v in videos]
         cache_key = get_llm_cache_key(video_ids, target_country)
@@ -90,14 +145,27 @@ class LLMService:
         
         if cached_result:
             logger.info(f"Retrieved LLM analysis from cache for {len(videos)} videos in {target_country}")
+            # Log cache hit to database
+            processing_time = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+            self._log_usage_to_database(
+                request_id=request_id,
+                input_tokens=0,
+                output_tokens=0,
+                cost_usd=0.0,
+                country=target_country,
+                query=query,
+                video_count=len(videos),
+                processing_time_ms=processing_time,
+                cache_hit='true'
+            )
             return cached_result
         
         try:
             # Prepare batch prompt
             prompt = self._build_country_relevance_prompt(videos, target_country)
             
-            # Estimate input tokens
-            input_tokens = self._estimate_tokens(prompt)
+            # Count input tokens precisely
+            input_tokens = self._count_tokens_precisely(prompt)
             
             # Budget check temporarily disabled for debugging
             estimated_cost = self._calculate_cost(input_tokens, input_tokens // 2)  # Estimate output as half of input
@@ -122,8 +190,8 @@ class LLMService:
             # Process response
             if response.text:
                 logger.info(f"Response text received with {len(response.text)} characters")
-                # Estimate output tokens and calculate actual cost
-                output_tokens = self._estimate_tokens(response.text)
+                # Count output tokens precisely and calculate actual cost
+                output_tokens = self._count_tokens_precisely(response.text)
                 actual_cost = self._calculate_cost(input_tokens, output_tokens)
                 self._track_cost(actual_cost)
                 
@@ -133,7 +201,21 @@ class LLMService:
                 # Cache the results for 6 hours (budget optimization)
                 cache.set(cache_key, results, 21600)
                 
-                logger.info(f"Analyzed {len(results)} videos for {target_country}. Cost: €{actual_cost:.4f}")
+                # Log usage to database
+                processing_time = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+                self._log_usage_to_database(
+                    request_id=request_id,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    cost_usd=actual_cost,
+                    country=target_country,
+                    query=query,
+                    video_count=len(videos),
+                    processing_time_ms=processing_time,
+                    cache_hit='false'
+                )
+                
+                logger.info(f"Analyzed {len(results)} videos for {target_country}. Cost: ${actual_cost:.6f} ({input_tokens} in + {output_tokens} out tokens)")
                 return results
             else:
                 logger.error(f"Empty response from LLM. Response object: {response}")

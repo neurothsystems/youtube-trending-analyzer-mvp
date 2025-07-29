@@ -386,6 +386,235 @@ async def get_budget_analytics():
         raise HTTPException(status_code=500, detail="Internal server error fetching budget analytics")
 
 
+@router.get("/llm-costs")
+async def get_llm_costs_analytics(
+    days: int = Query(7, description="Number of days to analyze", ge=1, le=30),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed LLM cost analytics with token usage breakdown.
+    
+    **Parameters:**
+    - **days**: Number of days to analyze (1-30, default: 7)
+    
+    **Returns:**
+    - Token usage breakdown (input/output)
+    - Cost analysis (USD/EUR by day)
+    - Model performance metrics
+    - Budget utilization trends
+    """
+    try:
+        from app.models.llm_usage_log import LLMUsageLog
+        from sqlalchemy import func, desc
+        
+        # Calculate date range
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # Total costs and tokens
+        cost_totals = db.query(
+            func.sum(LLMUsageLog.cost_usd).label('total_cost_usd'),
+            func.sum(LLMUsageLog.input_tokens).label('total_input_tokens'),
+            func.sum(LLMUsageLog.output_tokens).label('total_output_tokens'),
+            func.count(LLMUsageLog.id).label('total_requests'),
+            func.avg(LLMUsageLog.processing_time_ms).label('avg_processing_time')
+        ).filter(
+            LLMUsageLog.created_at >= start_date
+        ).first()
+        
+        # Daily breakdown
+        daily_stats = db.query(
+            func.date(LLMUsageLog.created_at).label('date'),
+            func.sum(LLMUsageLog.cost_usd).label('daily_cost_usd'),
+            func.sum(LLMUsageLog.input_tokens).label('daily_input_tokens'),
+            func.sum(LLMUsageLog.output_tokens).label('daily_output_tokens'),
+            func.count(LLMUsageLog.id).label('daily_requests')
+        ).filter(
+            LLMUsageLog.created_at >= start_date
+        ).group_by(func.date(LLMUsageLog.created_at)).order_by('date').all()
+        
+        # Country breakdown
+        country_stats = db.query(
+            LLMUsageLog.country,
+            func.sum(LLMUsageLog.cost_usd).label('country_cost_usd'),
+            func.sum(LLMUsageLog.input_tokens).label('country_input_tokens'),
+            func.sum(LLMUsageLog.output_tokens).label('country_output_tokens'),
+            func.count(LLMUsageLog.id).label('country_requests')
+        ).filter(
+            LLMUsageLog.created_at >= start_date,
+            LLMUsageLog.country.isnot(None)
+        ).group_by(LLMUsageLog.country).order_by(desc('country_cost_usd')).all()
+        
+        # Cache hit analysis
+        cache_stats = db.query(
+            LLMUsageLog.cache_hit,
+            func.count(LLMUsageLog.id).label('hit_count'),
+            func.sum(LLMUsageLog.cost_usd).label('hit_cost_usd')
+        ).filter(
+            LLMUsageLog.created_at >= start_date
+        ).group_by(LLMUsageLog.cache_hit).all()
+        
+        # Calculate efficiency metrics
+        total_cost_usd = float(cost_totals.total_cost_usd or 0)
+        total_requests = cost_totals.total_requests or 0
+        cost_per_request = total_cost_usd / total_requests if total_requests > 0 else 0
+        
+        # Build response
+        response = {
+            "period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "days": days
+            },
+            "totals": {
+                "cost_usd": round(total_cost_usd, 6),
+                "input_tokens": int(cost_totals.total_input_tokens or 0),
+                "output_tokens": int(cost_totals.total_output_tokens or 0),
+                "total_tokens": int((cost_totals.total_input_tokens or 0) + (cost_totals.total_output_tokens or 0)),
+                "requests": total_requests,
+                "avg_processing_time_ms": round(float(cost_totals.avg_processing_time or 0), 2),
+                "cost_per_request": round(cost_per_request, 6)
+            },
+            "daily_breakdown": [
+                {
+                    "date": str(stat.date),
+                    "cost_usd": round(float(stat.daily_cost_usd), 6),
+                    "input_tokens": int(stat.daily_input_tokens),
+                    "output_tokens": int(stat.daily_output_tokens),
+                    "requests": stat.daily_requests
+                } for stat in daily_stats
+            ],
+            "country_breakdown": [
+                {
+                    "country": stat.country,
+                    "cost_usd": round(float(stat.country_cost_usd), 6),
+                    "input_tokens": int(stat.country_input_tokens),
+                    "output_tokens": int(stat.country_output_tokens),
+                    "requests": stat.country_requests
+                } for stat in country_stats[:10]  # Top 10 countries
+            ],
+            "cache_efficiency": {
+                stat.cache_hit: {
+                    "requests": stat.hit_count,
+                    "cost_usd": round(float(stat.hit_cost_usd or 0), 6)
+                } for stat in cache_stats
+            },
+            "model_info": {
+                "current_model": "gemini-2.5-flash-lite",
+                "input_cost_per_1m_tokens": 0.10,
+                "output_cost_per_1m_tokens": 0.40,
+                "currency": "USD"
+            }
+        }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"LLM costs analytics error: {e}")
+        raise HTTPException(status_code=500, detail=f"Analytics query failed: {str(e)}")
+
+
+@router.get("/token-usage")
+async def get_token_usage_analytics(
+    days: int = Query(7, description="Number of days to analyze", ge=1, le=30),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed token usage analytics with trends.
+    
+    **Parameters:**
+    - **days**: Number of days to analyze (1-30, default: 7)
+    
+    **Returns:**
+    - Token usage trends over time
+    - Input vs output token ratios
+    - Efficiency metrics by country and query type
+    """
+    try:
+        from app.models.llm_usage_log import LLMUsageLog
+        from sqlalchemy import func
+        
+        # Calculate date range
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        # Hourly token usage for trend analysis
+        hourly_usage = db.query(
+            func.date_trunc('hour', LLMUsageLog.created_at).label('hour'),
+            func.sum(LLMUsageLog.input_tokens).label('input_tokens'),
+            func.sum(LLMUsageLog.output_tokens).label('output_tokens'),
+            func.count(LLMUsageLog.id).label('requests')
+        ).filter(
+            LLMUsageLog.created_at >= start_date
+        ).group_by(func.date_trunc('hour', LLMUsageLog.created_at)).order_by('hour').all()
+        
+        # Token efficiency by country
+        country_efficiency = db.query(
+            LLMUsageLog.country,
+            func.avg(LLMUsageLog.input_tokens).label('avg_input_tokens'),
+            func.avg(LLMUsageLog.output_tokens).label('avg_output_tokens'),
+            func.avg(LLMUsageLog.input_tokens + LLMUsageLog.output_tokens).label('avg_total_tokens'),
+            func.avg(LLMUsageLog.processing_time_ms).label('avg_processing_time')
+        ).filter(
+            LLMUsageLog.created_at >= start_date,
+            LLMUsageLog.country.isnot(None)
+        ).group_by(LLMUsageLog.country).all()
+        
+        # Video count vs token usage correlation
+        video_efficiency = db.query(
+            LLMUsageLog.video_count,
+            func.avg(LLMUsageLog.input_tokens).label('avg_input_tokens'),
+            func.avg(LLMUsageLog.output_tokens).label('avg_output_tokens'),
+            func.count(LLMUsageLog.id).label('request_count')
+        ).filter(
+            LLMUsageLog.created_at >= start_date,
+            LLMUsageLog.video_count.isnot(None)
+        ).group_by(LLMUsageLog.video_count).order_by(LLMUsageLog.video_count).all()
+        
+        response = {
+            "period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "days": days
+            },
+            "hourly_trends": [
+                {
+                    "hour": stat.hour.isoformat(),
+                    "input_tokens": int(stat.input_tokens),
+                    "output_tokens": int(stat.output_tokens),
+                    "total_tokens": int(stat.input_tokens + stat.output_tokens),
+                    "requests": stat.requests,
+                    "tokens_per_request": round((stat.input_tokens + stat.output_tokens) / stat.requests, 2) if stat.requests > 0 else 0
+                } for stat in hourly_usage
+            ],
+            "country_efficiency": [
+                {
+                    "country": stat.country,
+                    "avg_input_tokens": round(float(stat.avg_input_tokens), 2),
+                    "avg_output_tokens": round(float(stat.avg_output_tokens), 2),
+                    "avg_total_tokens": round(float(stat.avg_total_tokens), 2),
+                    "avg_processing_time_ms": round(float(stat.avg_processing_time), 2),
+                    "input_output_ratio": round(float(stat.avg_input_tokens) / float(stat.avg_output_tokens), 2) if stat.avg_output_tokens > 0 else 0
+                } for stat in country_efficiency
+            ],
+            "video_scaling": [
+                {
+                    "video_count": stat.video_count,
+                    "avg_input_tokens": round(float(stat.avg_input_tokens), 2),
+                    "avg_output_tokens": round(float(stat.avg_output_tokens), 2),
+                    "request_count": stat.request_count,
+                    "tokens_per_video": round(float(stat.avg_input_tokens + stat.avg_output_tokens) / stat.video_count, 2) if stat.video_count > 0 else 0
+                } for stat in video_efficiency if stat.video_count and stat.video_count <= 50  # Reasonable limit
+            ]
+        }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Token usage analytics error: {e}")
+        raise HTTPException(status_code=500, detail=f"Token analytics query failed: {str(e)}")
+
+
 @router.get("/performance")
 async def get_performance_analytics(
     hours: int = Query(24, description="Number of hours to analyze", ge=1, le=168),
