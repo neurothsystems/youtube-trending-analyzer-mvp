@@ -41,7 +41,6 @@ async def lifespan(app: FastAPI):
         
         # Manual table creation for missing tables with detailed logging
         logger.info("Starting manual table creation verification...")
-        from sqlalchemy import text
         
         # Use a transaction to ensure all-or-nothing table creation
         with engine.begin() as conn:
@@ -351,7 +350,7 @@ async def root():
     """Root endpoint returning API information."""
     return {
         "message": "YouTube Trending Analyzer MVP API",
-        "version": "1.1.2-db-fix-retry",
+        "version": "1.1.3-import-fix",
         "build_info": {
             "commit": "db-fix-improved-transactions",
             "features": [
@@ -373,7 +372,7 @@ async def root():
 async def api_info():
     """API information endpoint."""
     return {
-        "api_version": "1.1.2-db-fix-retry",
+        "api_version": "1.1.3-import-fix",
         "build_commit": "db-fix-improved-transactions",
         "algorithm": "MVP-LLM-Enhanced",
         "llm_provider": "gemini-flash",
