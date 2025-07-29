@@ -22,8 +22,9 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("Starting YouTube Trending Analyzer MVP")
+    logger.info("🚀 Starting YouTube Trending Analyzer MVP")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'local'}")
     
     # Create database tables (skip if they already exist)
     try:
@@ -350,7 +351,7 @@ async def root():
     """Root endpoint returning API information."""
     return {
         "message": "YouTube Trending Analyzer MVP API",
-        "version": "1.1.1-db-fix",
+        "version": "1.1.2-db-fix-retry",
         "build_info": {
             "commit": "db-fix-improved-transactions",
             "features": [
@@ -372,7 +373,7 @@ async def root():
 async def api_info():
     """API information endpoint."""
     return {
-        "api_version": "1.1.1-db-fix",
+        "api_version": "1.1.2-db-fix-retry",
         "build_commit": "db-fix-improved-transactions",
         "algorithm": "MVP-LLM-Enhanced",
         "llm_provider": "gemini-flash",
