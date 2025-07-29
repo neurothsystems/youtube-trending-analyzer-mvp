@@ -771,6 +771,168 @@ async def test_all_systems(db: Session = Depends(get_db)):
         }
 
 
+@router.post("/setup/database")
+async def setup_database(db: Session = Depends(get_db)):
+    """
+    Manual database setup endpoint.
+    
+    Creates all required database tables manually. This can be used
+    if the automatic startup initialization fails.
+    
+    **Returns:**
+    - Setup status and details
+    """
+    try:
+        from sqlalchemy import text
+        
+        result = {
+            "setup": "database_tables",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "status": "starting",
+            "operations": []
+        }
+        
+        # Manual table creation SQL
+        tables_sql = {
+            "videos": """
+                CREATE TABLE IF NOT EXISTS videos (
+                    video_id VARCHAR(20) PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    channel_name VARCHAR(255),
+                    channel_country VARCHAR(2),
+                    views INTEGER DEFAULT 0,
+                    likes INTEGER DEFAULT 0,
+                    comments INTEGER DEFAULT 0,
+                    upload_date TIMESTAMP WITH TIME ZONE,
+                    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    duration INTEGER,
+                    thumbnail_url TEXT,
+                    description TEXT,
+                    tags JSON
+                );
+            """,
+            "country_relevance": """
+                CREATE TABLE IF NOT EXISTS country_relevance (
+                    video_id VARCHAR(20) NOT NULL,
+                    country VARCHAR(2) NOT NULL,
+                    relevance_score FLOAT NOT NULL CHECK (relevance_score >= 0.0 AND relevance_score <= 1.0),
+                    reasoning TEXT,
+                    confidence_score FLOAT CHECK (confidence_score >= 0.0 AND confidence_score <= 1.0),
+                    origin_country VARCHAR(7) DEFAULT 'UNKNOWN',
+                    analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    llm_model VARCHAR(50) DEFAULT 'gemini-flash',
+                    PRIMARY KEY (video_id, country)
+                );
+            """,
+            "trending_feeds": """
+                CREATE TABLE IF NOT EXISTS trending_feeds (
+                    id SERIAL PRIMARY KEY,
+                    video_id VARCHAR(20) NOT NULL,
+                    country VARCHAR(2) NOT NULL,
+                    trending_rank INTEGER,
+                    category VARCHAR(50),
+                    captured_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """,
+            "search_cache": """
+                CREATE TABLE IF NOT EXISTS search_cache (
+                    cache_key VARCHAR(255) PRIMARY KEY,
+                    query VARCHAR(255),
+                    country VARCHAR(2),
+                    timeframe VARCHAR(20),
+                    results JSON NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP WITH TIME ZONE
+                );
+            """,
+            "training_labels": """
+                CREATE TABLE IF NOT EXISTS training_labels (
+                    id SERIAL PRIMARY KEY,
+                    video_id VARCHAR(20) NOT NULL,
+                    country VARCHAR(2) NOT NULL,
+                    query VARCHAR(255),
+                    is_relevant BOOLEAN NOT NULL,
+                    relevance_score FLOAT,
+                    reasoning TEXT,
+                    labeled_by VARCHAR(50) DEFAULT 'admin',
+                    labeled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """
+        }
+        
+        # Create tables one by one
+        for table_name, table_sql in tables_sql.items():
+            try:
+                db.execute(text(table_sql))
+                db.commit()
+                result["operations"].append({
+                    "table": table_name,
+                    "status": "created",
+                    "message": f"Table {table_name} created successfully"
+                })
+            except Exception as e:
+                result["operations"].append({
+                    "table": table_name,
+                    "status": "error",
+                    "error": str(e),
+                    "message": f"Failed to create table {table_name}"
+                })
+        
+        # Create basic indexes
+        indexes_sql = [
+            "CREATE INDEX IF NOT EXISTS idx_upload_date ON videos (upload_date);",
+            "CREATE INDEX IF NOT EXISTS idx_views ON videos (views);",
+            "CREATE INDEX IF NOT EXISTS idx_country_score ON country_relevance (country, relevance_score);",
+            "CREATE INDEX IF NOT EXISTS idx_video_country ON country_relevance (video_id, country);",
+            "CREATE INDEX IF NOT EXISTS idx_country_captured ON trending_feeds (country, captured_at);",
+            "CREATE INDEX IF NOT EXISTS idx_expires ON search_cache (expires_at);",
+            "CREATE INDEX IF NOT EXISTS idx_training_country ON training_labels (country);"
+        ]
+        
+        indexes_created = 0
+        for index_sql in indexes_sql:
+            try:
+                db.execute(text(index_sql))
+                db.commit()
+                indexes_created += 1
+            except Exception as e:
+                # Non-critical - continue with other indexes
+                pass
+        
+        result["indexes_created"] = indexes_created
+        result["total_indexes"] = len(indexes_sql)
+        
+        # Final verification
+        verification_query = text("""
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        """)
+        tables_result = db.execute(verification_query).fetchall()
+        created_tables = [row[0] for row in tables_result]
+        
+        result["created_tables"] = created_tables
+        result["missing_tables"] = [t for t in tables_sql.keys() if t not in created_tables]
+        
+        if not result["missing_tables"]:
+            result["status"] = "success"
+            result["message"] = "All database tables created successfully"
+        else:
+            result["status"] = "partial"
+            result["message"] = f"Some tables missing: {result['missing_tables']}"
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Database setup error: {e}")
+        return {
+            "setup": "database_tables",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e),
+            "message": "Database setup failed"
+        }
+
+
 @router.get("/health/live")
 async def liveness_check():
     """
