@@ -939,6 +939,168 @@ async def setup_database(db: Session = Depends(get_db)):
         }
 
 
+@router.get("/debug/youtube-search")
+async def debug_youtube_search():
+    """
+    Debug YouTube search with different parameter combinations.
+    
+    Tests various search configurations to identify why searches return 0 results.
+    """
+    try:
+        from app.services.youtube_service import youtube_service
+        from datetime import datetime, timezone, timedelta
+        
+        if not youtube_service._is_available():
+            return {"error": "YouTube API not available"}
+        
+        results = {
+            "debug": "youtube_search_configurations",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "tests": {}
+        }
+        
+        # Test parameters
+        test_query = "gaming"
+        test_country = "DE"
+        published_after = datetime.now(timezone.utc) - timedelta(days=30)
+        published_after_str = published_after.strftime('%Y-%m-%dT%H:%M:%SZ')
+        
+        # Test 1: Minimal search (no filters)
+        try:
+            request1 = youtube_service.youtube.search().list(
+                part='id,snippet',
+                q=test_query,
+                type='video',
+                maxResults=5
+            )
+            response1 = request1.execute()
+            results["tests"]["minimal_search"] = {
+                "config": "q, type=video only",
+                "videos_found": len(response1.get('items', [])),
+                "success": True
+            }
+        except Exception as e:
+            results["tests"]["minimal_search"] = {
+                "config": "q, type=video only",
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 2: With region code
+        try:
+            request2 = youtube_service.youtube.search().list(
+                part='id,snippet',
+                q=test_query,
+                type='video',
+                regionCode=test_country,
+                maxResults=5
+            )
+            response2 = request2.execute()
+            results["tests"]["with_region"] = {
+                "config": "q, type=video, regionCode=DE",
+                "videos_found": len(response2.get('items', [])),
+                "success": True
+            }
+        except Exception as e:
+            results["tests"]["with_region"] = {
+                "config": "q, type=video, regionCode=DE",
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 3: With time restriction
+        try:
+            request3 = youtube_service.youtube.search().list(
+                part='id,snippet',
+                q=test_query,
+                type='video',
+                publishedAfter=published_after_str,
+                maxResults=5
+            )
+            response3 = request3.execute()
+            results["tests"]["with_time"] = {
+                "config": f"q, type=video, publishedAfter={published_after_str}",
+                "videos_found": len(response3.get('items', [])),
+                "success": True
+            }
+        except Exception as e:
+            results["tests"]["with_time"] = {
+                "config": f"q, type=video, publishedAfter={published_after_str}",
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 4: Full current configuration
+        try:
+            request4 = youtube_service.youtube.search().list(
+                part='id,snippet',
+                q=test_query,
+                type='video',
+                regionCode=test_country,
+                maxResults=5,
+                publishedAfter=published_after_str,
+                order='relevance',
+                videoDuration='any',
+                videoEmbeddable='true'
+            )
+            response4 = request4.execute()
+            results["tests"]["full_config"] = {
+                "config": "All current filters (regionCode, publishedAfter, videoEmbeddable=true)",
+                "videos_found": len(response4.get('items', [])),
+                "success": True
+            }
+        except Exception as e:
+            results["tests"]["full_config"] = {
+                "config": "All current filters",
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Test 5: Without videoEmbeddable
+        try:
+            request5 = youtube_service.youtube.search().list(
+                part='id,snippet',
+                q=test_query,
+                type='video',
+                regionCode=test_country,
+                maxResults=5,
+                publishedAfter=published_after_str,
+                order='relevance'
+            )
+            response5 = request5.execute()
+            results["tests"]["no_embeddable"] = {
+                "config": "No videoEmbeddable filter",
+                "videos_found": len(response5.get('items', [])),
+                "success": True
+            }
+        except Exception as e:
+            results["tests"]["no_embeddable"] = {
+                "config": "No videoEmbeddable filter",
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Summary
+        successful_tests = [name for name, test in results["tests"].items() if test.get("success")]
+        results["summary"] = {
+            "total_tests": len(results["tests"]),
+            "successful_tests": len(successful_tests),
+            "failed_tests": len(results["tests"]) - len(successful_tests),
+            "recommendation": "Check which configuration returns the most videos"
+        }
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"YouTube search debug error: {e}")
+        return {
+            "debug": "youtube_search_configurations",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e)
+        }
+
+
 @router.get("/health/live")
 async def liveness_check():
     """
