@@ -152,6 +152,33 @@ async def lifespan(app: FastAPI):
                         "CREATE INDEX IF NOT EXISTS idx_labeled_at ON training_labels (labeled_at);",
                         "CREATE INDEX IF NOT EXISTS idx_query ON training_labels (query);"
                     ]
+                },
+                {
+                    'name': 'llm_usage_log',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS llm_usage_log (
+                            id SERIAL PRIMARY KEY,
+                            request_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+                            model_name VARCHAR(50) NOT NULL,
+                            input_tokens INTEGER NOT NULL,
+                            output_tokens INTEGER NOT NULL,
+                            cost_usd NUMERIC(10, 6) NOT NULL,
+                            cost_eur NUMERIC(10, 6),
+                            exchange_rate NUMERIC(8, 4),
+                            country VARCHAR(2),
+                            query VARCHAR(255),
+                            video_count INTEGER,
+                            processing_time_ms INTEGER,
+                            cache_hit VARCHAR(10),
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_llm_request_id ON llm_usage_log (request_id);",
+                        "CREATE INDEX IF NOT EXISTS idx_llm_model_name ON llm_usage_log (model_name);",
+                        "CREATE INDEX IF NOT EXISTS idx_llm_country ON llm_usage_log (country);",
+                        "CREATE INDEX IF NOT EXISTS idx_llm_created_at ON llm_usage_log (created_at);"
+                    ]
                 }
             ]
             
@@ -211,7 +238,7 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Final tables in database: {final_table_names}")
                 
                 # Check all required tables
-                required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels"]
+                required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels", "llm_usage_log"]
                 missing_tables = [t for t in required_tables if t not in final_table_names]
                 
                 if not missing_tables:
@@ -268,6 +295,24 @@ async def lifespan(app: FastAPI):
                             analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                             llm_model VARCHAR(50) DEFAULT 'gemini-flash',
                             PRIMARY KEY (video_id, country)
+                        );
+                    """),
+                    ("llm_usage_log", """
+                        CREATE TABLE IF NOT EXISTS llm_usage_log (
+                            id SERIAL PRIMARY KEY,
+                            request_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+                            model_name VARCHAR(50) NOT NULL,
+                            input_tokens INTEGER NOT NULL,
+                            output_tokens INTEGER NOT NULL,
+                            cost_usd NUMERIC(10, 6) NOT NULL,
+                            cost_eur NUMERIC(10, 6),
+                            exchange_rate NUMERIC(8, 4),
+                            country VARCHAR(2),
+                            query VARCHAR(255),
+                            video_count INTEGER,
+                            processing_time_ms INTEGER,
+                            cache_hit VARCHAR(10),
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
                 ]
