@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Decimal, UUID
+from sqlalchemy import Column, Integer, String, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from app.core.database import Base
 from datetime import datetime, timezone
@@ -19,9 +19,9 @@ class LLMUsageLog(Base):
     output_tokens = Column(Integer, nullable=False)
     
     # Costs
-    cost_usd = Column(Decimal(10, 6), nullable=False)
-    cost_eur = Column(Decimal(10, 6), nullable=True)
-    exchange_rate = Column(Decimal(8, 4), nullable=True)
+    cost_usd = Column(Numeric(10, 6), nullable=False)
+    cost_eur = Column(Numeric(10, 6), nullable=True)
+    exchange_rate = Column(Numeric(8, 4), nullable=True)
     
     # Context
     country = Column(String(2), nullable=True, index=True)
