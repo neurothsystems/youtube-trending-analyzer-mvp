@@ -7,7 +7,7 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import asyncio
 import re
 from app.core.config import settings
-from app.core.redis import CacheManager, get_llm_cache_key
+from app.core.redis import cache, get_llm_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class LLMService:
         # Check cache first
         video_ids = [v['video_id'] for v in videos]
         cache_key = get_llm_cache_key(video_ids, target_country)
-        cached_result = CacheManager.cache.get(cache_key)
+        cached_result = cache.get(cache_key)
         
         if cached_result:
             logger.info(f"Retrieved LLM analysis from cache for {len(videos)} videos in {target_country}")
@@ -131,7 +131,7 @@ class LLMService:
                 results = self._parse_country_relevance_response(response.text, video_ids)
                 
                 # Cache the results for 6 hours (budget optimization)
-                CacheManager.cache.set(cache_key, results, 21600)
+                cache.set(cache_key, results, 21600)
                 
                 logger.info(f"Analyzed {len(results)} videos for {target_country}. Cost: €{actual_cost:.4f}")
                 return results
