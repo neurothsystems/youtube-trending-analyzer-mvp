@@ -292,9 +292,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="YouTube Trending Analyzer MVP",
-    description="LLM-powered platform for genuine regional YouTube trend analysis",
-    version="1.0.0",
+    description="""
+    🚀 **LLM-powered platform for genuine regional YouTube trend analysis**
+    
+    ## Features
+    - **Multi-country Analysis**: Germany 🇩🇪, USA 🇺🇸, France 🇫🇷, Japan 🇯🇵
+    - **LLM-Enhanced Filtering**: Uses Gemini Flash to distinguish real trends from availability
+    - **Comprehensive Health Monitoring**: Database, APIs, and system status
+    - **Manual Database Setup**: Fallback mechanisms for reliable deployment
+    
+    ## Quick Start
+    1. **Search Trends**: Use `/api/mvp/trending` to find country-specific trending videos
+    2. **Health Check**: Use `/api/mvp/health` to monitor system status
+    3. **Test APIs**: Use `/api/mvp/test/all` to verify all components
+    4. **Database Setup**: Use `/api/mvp/setup/database` if tables need manual creation
+    
+    ## API Documentation
+    - **Interactive Testing**: Use the "Try it out" buttons below to test endpoints
+    - **Response Examples**: See real API responses with sample data
+    - **Parameter Details**: Understand all query parameters and request formats
+    """,
+    version="1.1.3-import-fix",
     lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
 
 # CORS middleware configuration
@@ -347,21 +369,47 @@ app.include_router(
 
 @app.get("/")
 async def root():
-    """Root endpoint returning API information."""
+    """
+    Root endpoint returning API information and interactive documentation links.
+    
+    **🎯 Quick Access:**
+    - **Interactive API Testing**: Visit `/docs` for Swagger UI with "Try it out" buttons
+    - **Alternative Documentation**: Visit `/redoc` for ReDoc interface
+    - **OpenAPI Schema**: Available at `/openapi.json`
+    
+    **🔧 Key Endpoints:**
+    - **Search**: `/api/mvp/trending?query=gaming&country=DE&timeframe=48h`
+    - **Health**: `/api/mvp/health` - System status monitoring
+    - **Testing**: `/api/mvp/test/all` - Comprehensive system tests
+    - **Database**: `/api/mvp/setup/database` - Manual table creation
+    """
     return {
-        "message": "YouTube Trending Analyzer MVP API",
+        "message": "🚀 YouTube Trending Analyzer MVP API",
         "version": "1.1.3-import-fix",
+        "status": "operational",
+        "interactive_docs": {
+            "swagger_ui": "/docs",
+            "redoc": "/redoc",
+            "openapi_schema": "/openapi.json"
+        },
+        "quick_test_endpoints": [
+            "/api/mvp/health",
+            "/api/mvp/health/database", 
+            "/api/mvp/test/all",
+            "/api/mvp/trending?query=gaming&country=DE&timeframe=48h"
+        ],
         "build_info": {
-            "commit": "db-fix-improved-transactions",
+            "commit": "import-fix-with-docs",
             "features": [
                 "origin_country_detection",
-                "multi_tier_search",
+                "multi_tier_search", 
                 "search_transparency",
                 "batch_llm_processing",
-                "adaptive_filtering"
+                "adaptive_filtering",
+                "interactive_api_docs",
+                "comprehensive_health_monitoring"
             ]
         },
-        "docs": "/docs",
         "algorithm": "MVP-LLM-Enhanced",
         "supported_countries": ["DE", "US", "FR", "JP"],
         "supported_timeframes": ["24h", "48h", "7d"]
@@ -370,32 +418,48 @@ async def root():
 
 @app.get("/api/mvp")
 async def api_info():
-    """API information endpoint."""
+    """
+    Detailed API information and endpoint documentation.
+    
+    **🧪 Interactive Testing Available:**
+    - **Swagger UI**: `/docs` - Full interactive API testing interface
+    - **ReDoc**: `/redoc` - Clean documentation with examples
+    
+    **💡 Pro Tip**: Use the Swagger UI `/docs` to test all endpoints with actual parameters!
+    """
     return {
         "api_version": "1.1.3-import-fix",
-        "build_commit": "db-fix-improved-transactions",
+        "build_commit": "import-fix-with-docs",
         "algorithm": "MVP-LLM-Enhanced",
         "llm_provider": "gemini-flash",
+        "interactive_testing": {
+            "swagger_ui": "/docs",
+            "redoc_docs": "/redoc",
+            "note": "Use Swagger UI for interactive endpoint testing with 'Try it out' buttons"
+        },
         "active_features": {
             "origin_country_detection": True,
             "multi_tier_search": True,
             "search_transparency": True,
             "batch_llm_processing": True,
             "adaptive_filtering": True,
-            "cache_invalidation": True
+            "cache_invalidation": True,
+            "interactive_api_docs": True,
+            "comprehensive_testing": True
         },
         "supported_countries": {
-            "DE": "Germany",
-            "US": "USA", 
-            "FR": "France",
-            "JP": "Japan"
+            "DE": "Germany 🇩🇪",
+            "US": "USA 🇺🇸", 
+            "FR": "France 🇫🇷",
+            "JP": "Japan 🇯🇵"
         },
         "timeframes": ["24h", "48h", "7d"],
-        "endpoints": {
-            "trending": "/api/mvp/trending",
-            "health": "/api/mvp/health",
-            "analytics": "/api/mvp/analytics",
-            "trending_feeds": "/api/mvp/trending-feeds"
+        "key_endpoints": {
+            "trending_search": "/api/mvp/trending",
+            "health_monitoring": "/api/mvp/health",
+            "system_testing": "/api/mvp/test/all",
+            "database_setup": "/api/mvp/setup/database",
+            "analytics": "/api/mvp/analytics"
         }
     }
 
