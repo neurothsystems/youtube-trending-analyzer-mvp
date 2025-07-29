@@ -368,11 +368,17 @@ async def test_youtube_api():
         
         # Test 2: Simple search test
         try:
-            test_videos = youtube_service.search_videos("test", "US", max_results=5)
+            # Test with popular current terms and extend timeframe for testing
+            from datetime import datetime, timezone, timedelta
+            test_published_after = datetime.now(timezone.utc) - timedelta(days=30)  # 30 days instead of 7
+            test_videos = youtube_service.search_videos("gaming", "US", max_results=5, published_after=test_published_after)
             result["search_test"] = {
                 "success": True,
                 "videos_found": len(test_videos),
-                "sample_video_ids": [v.video_id for v in test_videos[:3]]
+                "sample_video_ids": [v['video_id'] for v in test_videos[:3]],
+                "test_query": "gaming",
+                "test_country": "US",
+                "timeframe_days": 30
             }
             
         except Exception as e:
@@ -389,8 +395,8 @@ async def test_youtube_api():
                 result["details_test"] = {
                     "success": True,
                     "video_id": sample_id,
-                    "has_title": bool(video_details[0].title if video_details else False),
-                    "has_views": bool(video_details[0].views if video_details else False)
+                    "has_title": bool(video_details[0].get('title') if video_details else False),
+                    "has_views": bool(video_details[0].get('views') if video_details else False)
                 }
                 
             except Exception as e:
