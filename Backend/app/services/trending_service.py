@@ -45,7 +45,7 @@ class TrendingService:
                 return self._empty_result(query, country, timeframe, "No videos found")
             
             # Step 2: Get LLM country relevance analysis (batch processing)
-            llm_results = self._get_country_relevance_analysis(videos, country, db)
+            llm_results = self._get_country_relevance_analysis(videos, country, db, query)
             
             # Step 3: Calculate trending scores using MOMENTUM MVP algorithm
             scored_videos = self._calculate_trending_scores(videos, llm_results, country, timeframe, db)
@@ -232,7 +232,7 @@ class TrendingService:
             return [], {'search_terms_used': search_terms_used, 'collection_stats': collection_stats}
     
     def _get_country_relevance_analysis(self, videos: List[Dict], country: str, 
-                                       db: Session) -> Dict[str, Dict]:
+                                       db: Session, query: str = None) -> Dict[str, Dict]:
         """Get country relevance analysis from LLM or database."""
         video_ids = [v['video_id'] for v in videos]
         
@@ -429,7 +429,7 @@ class TrendingService:
             
             if fallback_videos:
                 # Get LLM analysis for fallback videos
-                fallback_llm = self._get_country_relevance_analysis(fallback_videos, country, db)
+                fallback_llm = self._get_country_relevance_analysis(fallback_videos, country, db, query)
                 
                 # Calculate scores for fallback videos
                 fallback_scored = self._calculate_trending_scores(fallback_videos, fallback_llm, country, timeframe, db)
