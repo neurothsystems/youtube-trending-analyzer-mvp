@@ -1101,6 +1101,138 @@ async def debug_youtube_search():
         }
 
 
+@router.get("/debug/trending-service")
+async def debug_trending_service(db: Session = Depends(get_db)):
+    """
+    Debug the trending service step by step to identify where it fails.
+    """
+    try:
+        from app.services.trending_service import trending_service
+        from app.services.country_processors import CountryProcessorFactory
+        from app.core.config import get_timeframe_hours
+        from datetime import datetime, timezone, timedelta
+        
+        result = {
+            "debug": "trending_service_step_by_step",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "test_params": {
+                "query": "gaming",
+                "country": "DE", 
+                "timeframe": "48h"
+            },
+            "steps": {}
+        }
+        
+        query = "gaming"
+        country = "DE"
+        timeframe = "48h"
+        
+        # Step 1: Test country processor
+        try:
+            processor = CountryProcessorFactory.get_processor(country)
+            timeframe_hours = get_timeframe_hours(timeframe)
+            published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
+            
+            # Get search terms
+            tier_1_terms = processor.get_local_search_terms(query)[:5]
+            tier_2_terms = processor.get_category_terms(query)[:3] 
+            tier_3_terms = processor.get_generic_trending_terms()[:2]
+            
+            result["steps"]["country_processor"] = {
+                "success": True,
+                "processor_type": type(processor).__name__,
+                "timeframe_hours": timeframe_hours,
+                "published_after": published_after.isoformat(),
+                "search_terms": {
+                    "tier_1": tier_1_terms,
+                    "tier_2": tier_2_terms,
+                    "tier_3": tier_3_terms,
+                    "total_terms": len(tier_1_terms) + len(tier_2_terms) + len(tier_3_terms)
+                }
+            }
+        except Exception as e:
+            result["steps"]["country_processor"] = {
+                "success": False,
+                "error": str(e)
+            }
+            return result
+        
+        # Step 2: Test individual search terms
+        try:
+            from app.services.youtube_service import youtube_service
+            search_results = {}
+            total_videos = 0
+            
+            # Test each tier of terms
+            for tier_name, terms in [("tier_1", tier_1_terms), ("tier_2", tier_2_terms), ("tier_3", tier_3_terms)]:
+                tier_results = {}
+                for term in terms[:2]:  # Only test first 2 terms per tier to save quota
+                    videos = youtube_service.search_videos(
+                        term, 
+                        country,
+                        max_results=10,
+                        published_after=published_after
+                    )
+                    tier_results[term] = len(videos)
+                    total_videos += len(videos)
+                search_results[tier_name] = tier_results
+            
+            result["steps"]["search_terms_test"] = {
+                "success": True,
+                "results_per_term": search_results,
+                "total_videos_found": total_videos
+            }
+        except Exception as e:
+            result["steps"]["search_terms_test"] = {
+                "success": False,
+                "error": str(e)
+            }
+            return result
+        
+        # Step 3: Test trending service collection method directly
+        try:
+            # Test the private _collect_videos method if possible
+            videos, transparency_data = trending_service._collect_videos(query, country, timeframe, db)
+            
+            result["steps"]["collect_videos"] = {
+                "success": True,
+                "videos_collected": len(videos),
+                "transparency_data": transparency_data
+            }
+        except Exception as e:
+            result["steps"]["collect_videos"] = {
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Step 4: Test full trending analysis
+        try:
+            trending_result = trending_service.analyze_trending_videos(query, country, timeframe, db, limit=10)
+            
+            result["steps"]["full_analysis"] = {
+                "success": trending_result.get("success", False),
+                "results_count": len(trending_result.get("results", [])),
+                "metadata": trending_result.get("metadata", {}),
+                "message": trending_result.get("metadata", {}).get("message", "No message")
+            }
+        except Exception as e:
+            result["steps"]["full_analysis"] = {
+                "success": False,
+                "error": str(e)
+            }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Trending service debug error: {e}")
+        return {
+            "debug": "trending_service_step_by_step",
+            "status": "error",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "error": str(e)
+        }
+
+
 @router.get("/health/live")
 async def liveness_check():
     """
