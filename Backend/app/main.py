@@ -6,7 +6,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
 from app.models import Base
-from app.api import trending, health, analytics, google_trends, trends_monitoring
+from app.api import trending, health, analytics, google_trends
 from app.startup.production_deployment import initialize_production_environment, get_health_check_data
 
 # Import all models to ensure they are registered with Base
@@ -465,10 +465,11 @@ app.include_router(
     tags=["google-trends"]
 )
 
-app.include_router(
-    trends_monitoring.router,
-    tags=["anti-detection-monitoring"]
-)
+# Trends monitoring disabled - has import errors  
+# app.include_router(
+#     trends_monitoring.router,
+#     tags=["anti-detection-monitoring"]
+# )
 
 
 @app.get("/")
