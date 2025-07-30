@@ -2,38 +2,25 @@ import logging
 import time
 from typing import Dict, Optional, List
 from datetime import datetime, timezone, timedelta
-from pytrends.request import TrendReq
 import random
 from app.core.config import settings
 from app.core.redis import CacheManager
+from app.services.robust_google_trends import robust_google_trends
 
 logger = logging.getLogger(__name__)
 
 
 class GoogleTrendsService:
-    """Google Trends integration service for cross-platform validation."""
+    """Google Trends integration service using robust wrapper for cross-platform validation."""
     
     def __init__(self):
-        """Initialize Google Trends client."""
-        try:
-            self.pytrends = TrendReq(
-                hl='en-US', 
-                tz=360, 
-                timeout=(10, 25),
-                retries=2,
-                backoff_factor=0.1
-            )
-            logger.info("Google Trends client initialized successfully")
-        except ImportError as e:
-            logger.error(f"pytrends not available: {e}")
-            self.pytrends = None
-        except Exception as e:
-            logger.warning(f"Google Trends client initialization failed, will use fallback: {e}")
-            self.pytrends = None
+        """Initialize Google Trends service with robust wrapper."""
+        self.robust_trends = robust_google_trends
+        logger.info("Google Trends service initialized with robust wrapper")
     
     def _is_available(self) -> bool:
-        """Check if Google Trends is available."""
-        return self.pytrends is not None
+        """Check if Google Trends is available and healthy."""
+        return self.robust_trends.is_healthy()
     
     def _get_cache_key(self, query: str, country: str, timeframe: str) -> str:
         """Generate cache key for Google Trends data."""

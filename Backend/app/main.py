@@ -6,7 +6,8 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
 from app.models import Base
-from app.api import trending, health, analytics, google_trends
+from app.api import trending, health, analytics, google_trends, trends_monitoring
+from app.startup.production_deployment import initialize_production_environment, get_health_check_data
 
 # Import all models to ensure they are registered with Base
 from app.models.video import Video
@@ -24,9 +25,22 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("🚀 Starting YouTube Trending Analyzer MVP")
+    logger.info("🚀 Starting YouTube Trending Analyzer MVP with Production Anti-Detection")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'local'}")
+    
+    # Initialize production environment and anti-detection systems
+    try:
+        logger.info("Initializing production anti-detection systems...")
+        production_ready = initialize_production_environment()
+        if production_ready:
+            logger.info("✅ Production anti-detection systems initialized successfully")
+        else:
+            logger.warning("⚠️ Production systems initialized with some issues")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize production systems: {e}")
+        if settings.ENVIRONMENT == 'production':
+            raise  # Fail fast in production
     
     # Create database tables (skip if they already exist)
     try:
@@ -391,7 +405,7 @@ app = FastAPI(
     - **Response Examples**: See real API responses with sample data
     - **Parameter Details**: Understand all query parameters and request formats
     """,
-    version="2.1.0-google-trends-search-enhanced",
+    version="2.2.0-robust-google-trends",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -451,6 +465,11 @@ app.include_router(
     tags=["google-trends"]
 )
 
+app.include_router(
+    trends_monitoring.router,
+    tags=["anti-detection-monitoring"]
+)
+
 
 @app.get("/")
 async def root():
@@ -494,7 +513,13 @@ async def root():
                 "interactive_api_docs",
                 "comprehensive_health_monitoring",
                 "google_trends_integration",
-                "cross_platform_validation"
+                "cross_platform_validation",
+                "production_anti_detection",
+                "advanced_user_agent_rotation",
+                "render_optimization",
+                "adaptive_behavior_engine",
+                "emergency_fallback_system",
+                "real_time_monitoring"
             ]
         },
         "algorithm": "MVP-LLM-GoogleTrends-Enhanced",

@@ -17,3 +17,15 @@ passlib[bcrypt]==1.7.4
 schedule==1.2.0
 python-dotenv==1.0.0
 httpx==0.25.2
+
+# Anti-detection system dependencies
+fake-useragent==1.4.0
+urllib3==1.26.18
+pandas==2.1.4
+psutil==5.9.6
+aiohttp==3.9.1
+
+# Robust pytrends wrapper dependencies
+tenacity==8.2.3
+cachetools==5.3.2
+user-agents==2.2.0

@@ -343,3 +343,106 @@ async def get_enhanced_search_terms(
     except Exception as e:
         logger.error(f"Enhanced search terms error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error generating enhanced search terms")
+
+
+@router.get("/robust-status")
+async def get_robust_google_trends_status():
+    """
+    Get comprehensive status of the robust Google Trends system.
+    
+    **NEW FEATURE**: This endpoint provides detailed monitoring of the production-hardened
+    Google Trends implementation with anti-detection and reliability features.
+    
+    **Returns:**
+    - Service health status and statistics
+    - Success rates and performance metrics
+    - Anti-detection system status
+    - Circuit breaker state
+    - Cache performance
+    - Production alerts (if any)
+    """
+    try:
+        # Import the robust service
+        from app.services.robust_google_trends import robust_google_trends
+        from app.services.anti_detection_pytrends import anti_detection_manager
+        
+        # Get comprehensive stats
+        robust_stats = robust_google_trends.get_stats()
+        anti_detection_stats = anti_detection_manager.get_stats()
+        
+        # Combine stats
+        combined_stats = {
+            "success": True,
+            "service_status": "healthy" if robust_google_trends.is_healthy() else "degraded",
+            "robust_wrapper": {
+                "health_status": "healthy" if robust_google_trends.is_healthy() else "degraded",
+                "success_rate": robust_stats.get('success_rate', 0.0),
+                "recent_success_rate_30m": robust_stats.get('recent_success_rate_30m', 0.0),
+                "recent_success_rate_5m": robust_stats.get('recent_success_rate_5m', 0.0),
+                "total_requests": robust_stats.get('total_requests', 0),
+                "circuit_breaker_state": robust_stats.get('circuit_breaker_state', 'unknown'),
+                "circuit_breaker_failures": robust_stats.get('circuit_breaker_failures', 0),
+                "session_pool_size": robust_stats.get('session_pool_size', 0),
+                "cache_layers": robust_stats.get('cache_layers', [])
+            },
+            "anti_detection": {
+                "active": anti_detection_stats.get('anti_detection_active', False),
+                "render_environment": anti_detection_stats.get('render_environment', False),
+                "current_success_rate": anti_detection_stats.get('current_success_rate', 0.0),
+                "average_response_time": anti_detection_stats.get('average_response_time', 0.0),
+                "active_sessions": anti_detection_stats.get('active_sessions', 0),
+                "timing_mode": anti_detection_stats.get('timing_mode', 'unknown'),
+                "health_status": anti_detection_stats.get('health_status', 'unknown'),
+                "top_errors": anti_detection_stats.get('top_errors', {})
+            },
+            "alerts": [],
+            "recommendations": []
+        }
+        
+        # Check for alerts
+        if 'alert' in anti_detection_stats:
+            combined_stats['alerts'].append({
+                'type': 'anti_detection',
+                'message': anti_detection_stats['alert'],
+                'severity': 'warning'
+            })
+        
+        # Add recommendations based on status
+        success_rate = robust_stats.get('recent_success_rate_5m', 0.0)
+        if success_rate < 0.3:
+            combined_stats['recommendations'].append({
+                'type': 'critical',
+                'message': 'Very low success rate. Consider enabling proxy rotation or switching to commercial API.',
+                'action': 'immediate'
+            })
+        elif success_rate < 0.6:
+            combined_stats['recommendations'].append({
+                'type': 'warning', 
+                'message': 'Moderate success rate. Monitor closely and consider optimization.',
+                'action': 'monitor'
+            })
+        
+        # Circuit breaker status
+        if robust_stats.get('circuit_breaker_state') == 'open':
+            combined_stats['alerts'].append({
+                'type': 'circuit_breaker',
+                'message': f"Circuit breaker is open after {robust_stats.get('circuit_breaker_failures', 0)} failures",
+                'severity': 'error'
+            })
+        
+        return combined_stats
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "service_status": "not_available",
+            "error": f"Robust Google Trends not available: {e}",
+            "fallback_status": "Using basic pytrends implementation"
+        }
+    except Exception as e:
+        logger.error(f"Robust status check error: {e}")
+        return {
+            "success": False,
+            "service_status": "error",
+            "error": str(e)
+        }

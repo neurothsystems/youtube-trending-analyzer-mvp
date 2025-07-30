@@ -2,48 +2,34 @@ import logging
 import time
 from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
-from pytrends.request import TrendReq
 import random
 from app.core.config import settings
 from app.core.redis import CacheManager
 from app.services.country_processors import CountryProcessorFactory
+from app.services.robust_google_trends import robust_google_trends
 
 logger = logging.getLogger(__name__)
 
 
 class GoogleTrendsSearchEnhancer:
-    """Enhanced search term generation using Google Trends data."""
+    """Enhanced search term generation using robust Google Trends wrapper."""
     
     def __init__(self):
-        """Initialize Google Trends search enhancer."""
-        try:
-            self.pytrends = TrendReq(
-                hl='en-US', 
-                tz=360, 
-                timeout=(10, 25),
-                retries=2,
-                backoff_factor=0.1
-            )
-            logger.info("Google Trends Search Enhancer initialized successfully")
-        except ImportError as e:
-            logger.error(f"pytrends not available: {e}")
-            self.pytrends = None
-        except Exception as e:
-            logger.warning(f"Google Trends enhancer initialization failed, will use fallback: {e}")
-            self.pytrends = None
+        """Initialize Google Trends search enhancer with robust wrapper."""
+        self.robust_trends = robust_google_trends
+        logger.info("Google Trends Search Enhancer initialized with robust wrapper")
     
     def _is_available(self) -> bool:
-        """Check if Google Trends is available."""
-        return self.pytrends is not None
+        """Check if Google Trends is available and healthy."""
+        return self.robust_trends.is_healthy()
     
     def _get_cache_key(self, query: str, country: str, timeframe: str) -> str:
         """Generate cache key for enhanced search terms."""
         return f"enhanced_search:{country.upper()}:{query.lower()}:{timeframe}"
     
-    def _rate_limit_delay(self):
-        """Add random delay to avoid rate limiting."""
-        delay = random.uniform(1, 3)  # 1-3 seconds random delay
-        time.sleep(delay)
+    def get_service_stats(self) -> Dict:
+        """Get comprehensive service statistics from robust wrapper."""
+        return self.robust_trends.get_stats()
     
     def get_enhanced_search_terms(self, query: str, country: str, timeframe: str = '7d') -> List[str]:
         """
@@ -105,31 +91,10 @@ class GoogleTrendsSearchEnhancer:
             return self._fallback_search_terms(query, country)
     
     def _get_top_web_topic(self, query: str, country: str, timeframe: str) -> Optional[str]:
-        """Get top related topic from web search."""
+        """Get top related topic from web search using robust wrapper."""
         try:
-            self._rate_limit_delay()
-            
-            # Map timeframes
-            timeframe_map = {
-                '24h': 'now 1-d',
-                '48h': 'now 2-d', 
-                '7d': 'now 7-d',
-                '1w': 'now 7-d'
-            }
-            
-            pytrends_timeframe = timeframe_map.get(timeframe, 'now 7-d')
-            
-            # Build payload for web search
-            self.pytrends.build_payload(
-                [query], 
-                cat=0,  # All categories
-                timeframe=pytrends_timeframe,
-                geo=country,
-                gprop=''  # Web search (default)
-            )
-            
-            # Get related topics
-            related_topics = self.pytrends.related_topics()
+            # Use robust Google Trends wrapper
+            related_topics = self.robust_trends.get_related_topics(query, country, timeframe)
             
             if (related_topics and 
                 query in related_topics and 
@@ -156,31 +121,10 @@ class GoogleTrendsSearchEnhancer:
             return None
     
     def _get_youtube_search_queries(self, query: str, country: str, timeframe: str) -> List[str]:
-        """Get top YouTube search queries."""
+        """Get top YouTube search queries using robust wrapper."""
         try:
-            self._rate_limit_delay()
-            
-            # Map timeframes
-            timeframe_map = {
-                '24h': 'now 1-d',
-                '48h': 'now 2-d', 
-                '7d': 'now 7-d',
-                '1w': 'now 7-d'
-            }
-            
-            pytrends_timeframe = timeframe_map.get(timeframe, 'now 7-d')
-            
-            # Build payload for YouTube search
-            self.pytrends.build_payload(
-                [query], 
-                cat=0,  # All categories
-                timeframe=pytrends_timeframe,
-                geo=country,
-                gprop='youtube'  # YouTube search
-            )
-            
-            # Get related queries
-            related_queries = self.pytrends.related_queries()
+            # Use robust Google Trends wrapper for YouTube queries
+            related_queries = self.robust_trends.get_related_queries(query, country, timeframe, 'youtube')
             
             youtube_terms = []
             
@@ -199,6 +143,8 @@ class GoogleTrendsSearchEnhancer:
             
             # If we have rising queries and not enough top queries, add some rising ones
             if (len(youtube_terms) < 5 and 
+                query in related_queries and
+                related_queries[query] and
                 'rising' in related_queries[query] and 
                 related_queries[query]['rising'] is not None and 
                 not related_queries[query]['rising'].empty):
