@@ -36,6 +36,7 @@ export interface TrendingResponse {
     cache_hit: boolean;
     trending_feed_matches?: number;
     llm_cost_cents?: number;
+    google_trends?: GoogleTrendsData;
     timestamp?: string;
     message?: string;
     search_terms_used?: {
@@ -290,4 +291,78 @@ export class TrendingAnalysisError extends Error {
     super(message);
     this.name = 'TrendingAnalysisError';
   }
+}
+
+// Google Trends types
+export interface GoogleTrendsData {
+  trend_score: number;
+  is_trending: boolean;
+  peak_interest: number; 
+  validation_score: number;
+  cross_platform_boost: number;
+  platform_alignment: 'strong' | 'moderate' | 'weak' | 'none';
+  cache_hit: boolean;
+  error?: string;
+}
+
+export interface GoogleTrendsResponse {
+  success: boolean;
+  query: string;
+  country: string;
+  country_name: string;
+  timeframe: string;
+  google_trends: {
+    trend_score: number;
+    peak_interest: number;
+    average_interest: number;
+    recent_interest: number;
+    is_trending: boolean;
+    data_points: number;
+    cache_hit: boolean;
+    query: string;
+    country: string;
+    timestamp: string;
+    error?: string;
+  };
+  cross_platform_validation: {
+    validation_score: number;
+    google_trending: boolean;
+    youtube_trending: boolean;
+    platform_alignment: string;
+    recommendation: string;
+    cross_platform_boost: number;
+  };
+  related_queries: string[];
+  metadata: {
+    service: string;
+    cache_hit: boolean;
+    data_quality: 'high' | 'limited';
+    trending_confidence: string;
+  };
+}
+
+export interface CrossPlatformValidationResponse {
+  success: boolean;
+  query: string;
+  country: string;
+  country_name: string;
+  validation_result: {
+    validation_score: number;
+    google_trending: boolean;
+    youtube_trending: boolean;
+    platform_alignment: string;
+    recommendation: string;
+    cross_platform_boost: number;
+  };
+  google_trends_context: {
+    trend_score: number;
+    is_trending: boolean;
+    peak_interest: number;
+  };
+  recommendation: {
+    confidence_level: string;
+    boost_applied: number;
+    trending_verdict: string;
+    use_for_scoring: boolean;
+  };
 }

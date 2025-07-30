@@ -7,6 +7,8 @@ import {
   CountryAnalytics,
   SystemAnalytics,
   BudgetAnalytics,
+  GoogleTrendsResponse,
+  CrossPlatformValidationResponse,
   SearchFormData,
   CountryCode,
   TimeframeOption,
@@ -267,6 +269,113 @@ export class TrendingAnalyzerAPI {
       return response.data;
     } catch (error) {
       console.error('Error fetching cache stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Google Trends data for a query and country
+   */
+  static async getGoogleTrends(
+    query: string,
+    country: CountryCode,
+    timeframe: TimeframeOption = '7d',
+    includeRelated: boolean = false
+  ): Promise<GoogleTrendsResponse> {
+    try {
+      const response = await api.get<GoogleTrendsResponse>(
+        `/api/mvp/google-trends/${encodeURIComponent(query)}/${country}`,
+        {
+          params: {
+            timeframe,
+            include_related: includeRelated
+          }
+        }
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Google Trends:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get cross-platform validation between Google Trends and YouTube
+   */
+  static async getCrossPlatformValidation(
+    query: string,
+    country: CountryCode,
+    youtubeTrending: boolean = false,
+    timeframe: TimeframeOption = '7d'
+  ): Promise<CrossPlatformValidationResponse> {
+    try {
+      const response = await api.get<CrossPlatformValidationResponse>(
+        `/api/mvp/google-trends/validation/${encodeURIComponent(query)}/${country}`,
+        {
+          params: {
+            youtube_trending: youtubeTrending,
+            timeframe
+          }
+        }
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching cross-platform validation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get related trending queries from Google Trends
+   */
+  static async getRelatedTrendingQueries(
+    query: string,
+    country: CountryCode,
+    limit: number = 8
+  ): Promise<{
+    success: boolean;
+    original_query: string;
+    country: string;
+    country_name: string;
+    related_queries: string[];
+    total_found: number;
+    returned: number;
+    suggestion: string;
+  }> {
+    try {
+      const response = await api.get(
+        `/api/mvp/google-trends/related/${encodeURIComponent(query)}/${country}`,
+        {
+          params: { limit }
+        }
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching related queries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Google Trends service status
+   */
+  static async getGoogleTrendsStatus(): Promise<{
+    success: boolean;
+    service_status: string;
+    pytrends_available: boolean;
+    rate_limiting: any;
+    cache_info: any;
+    test_query_status: string;
+    dependencies: any;
+  }> {
+    try {
+      const response = await api.get('/api/mvp/google-trends/status');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching Google Trends status:', error);
       throw error;
     }
   }

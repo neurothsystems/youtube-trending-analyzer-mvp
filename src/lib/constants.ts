@@ -46,6 +46,12 @@ export const API_ENDPOINTS = {
     system: '/api/mvp/analytics/system',
     budget: '/api/mvp/analytics/budget'
   },
+  googleTrends: {
+    trends: '/api/mvp/google-trends',
+    validation: '/api/mvp/google-trends/validation',
+    related: '/api/mvp/google-trends/related',
+    status: '/api/mvp/google-trends/status'
+  },
   cache: {
     stats: '/api/mvp/trending/cache/stats',
     invalidate: '/api/mvp/trending/cache/invalidate'

@@ -190,6 +190,16 @@ export default function ResultsDisplay({ results, onRetry }: ResultsDisplayProps
                 LLM Cost: {formatCurrency(results.metadata.llm_cost_cents / 100)}
               </span>
             )}
+
+            {results.metadata.google_trends && (
+              <span className={`px-2 py-1 rounded-full text-xs ${
+                results.metadata.google_trends.is_trending 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-gray-100 text-gray-700'
+              }`}>
+                Google Trends: {(results.metadata.google_trends.trend_score * 100).toFixed(0)}%
+              </span>
+            )}
           </div>
 
           <div className="text-right">

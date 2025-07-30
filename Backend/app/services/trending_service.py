@@ -9,7 +9,9 @@ from app.models.country_relevance import CountryRelevance
 from app.models.trending_feed import TrendingFeed
 from app.services.youtube_service import youtube_service
 from app.services.llm_service import llm_service
+from app.services.google_trends_service import google_trends_service
 from app.services.country_processors import CountryProcessorFactory
+from app.services.google_trends_search_enhancer import google_trends_search_enhancer
 from app.core.redis import CacheManager
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ class TrendingService:
     
     def __init__(self):
         """Initialize trending service."""
-        self.algorithm_version = "MVP-LLM-Enhanced"
+        self.algorithm_version = "MVP-LLM-GoogleTrends-SearchEnhanced"
     
     def analyze_trending_videos(self, query: str, country: str, timeframe: str, 
                                db: Session, limit: int = 10) -> Dict:
@@ -38,25 +40,28 @@ class TrendingService:
             return cached_result
         
         try:
-            # Step 1: Collect videos from multiple sources
+            # Step 1: Collect videos from multiple sources with enhanced search
             videos, transparency_data = self._collect_videos(query, country, timeframe, db)
             
             if not videos:
                 return self._empty_result(query, country, timeframe, "No videos found")
             
-            # Step 2: Get LLM country relevance analysis (batch processing)
+            # Step 2: Get Google Trends cross-platform validation
+            google_trends_data = self._get_google_trends_analysis(query, country, timeframe)
+            
+            # Step 3: Get LLM country relevance analysis (batch processing)
             llm_results = self._get_country_relevance_analysis(videos, country, db, query)
             
-            # Step 3: Calculate trending scores using MOMENTUM MVP algorithm
-            scored_videos = self._calculate_trending_scores(videos, llm_results, country, timeframe, db)
+            # Step 4: Calculate trending scores using MOMENTUM MVP algorithm with Google Trends
+            scored_videos = self._calculate_trending_scores(videos, llm_results, country, timeframe, db, google_trends_data)
             
-            # Step 4: Apply adaptive filtering and guarantee minimum results
+            # Step 5: Apply adaptive filtering and guarantee minimum results
             filtered_videos = self._apply_adaptive_filtering(scored_videos, limit, query, country, timeframe, db)
             
-            # Step 5: Rank and format results
+            # Step 6: Rank and format results
             final_results = self._rank_and_format_results(filtered_videos, limit)
             
-            # Step 5: Prepare response with metadata
+            # Step 7: Prepare response with metadata
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
             
             result = {
@@ -73,6 +78,7 @@ class TrendingService:
                     "cache_hit": False,
                     "trending_feed_matches": self._count_trending_matches(final_results),
                     "llm_cost_cents": round(llm_service.daily_cost * 100, 2) if llm_service else 0,
+                    "google_trends": google_trends_data,
                     "search_terms_used": transparency_data.get('search_terms_used', {}),
                     "collection_stats": transparency_data.get('collection_stats', {})
                 }
@@ -128,18 +134,23 @@ class TrendingService:
             timeframe_hours = get_timeframe_hours(timeframe)
             published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
             
-            # Multi-tier search strategy
-            tier_1_terms = processor.get_local_search_terms(query)[:5]
+            # Enhanced search strategy using Google Trends
+            enhanced_search_metadata = google_trends_search_enhancer.get_search_terms_with_metadata(query, country, timeframe)
+            enhanced_terms = enhanced_search_metadata['search_terms']
+            
+            # Fallback to country processors for additional terms if needed
             tier_2_terms = processor.get_category_terms(query)[:3]
             tier_3_terms = processor.get_generic_trending_terms()[:2]
             
-            search_tiers = [tier_1_terms, tier_2_terms, tier_3_terms]
+            search_tiers = [enhanced_terms[:7], tier_2_terms, tier_3_terms]
             
             # Store search terms for transparency
-            search_terms_used['tier_1_terms'] = tier_1_terms
+            search_terms_used['tier_1_terms'] = enhanced_terms[:7]
             search_terms_used['tier_2_terms'] = tier_2_terms
             search_terms_used['tier_3_terms'] = tier_3_terms
-            search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms) + len(tier_3_terms)
+            search_terms_used['total_search_terms'] = len(enhanced_terms[:7]) + len(tier_2_terms) + len(tier_3_terms)
+            search_terms_used['google_trends_enhanced'] = True
+            search_terms_used['enhanced_search_metadata'] = enhanced_search_metadata
             
             videos_collected = 0
             
@@ -147,7 +158,8 @@ class TrendingService:
                 if videos_collected >= target_video_count:
                     break
                     
-                logger.info(f"Tier {tier_idx + 1}: Searching with {len(search_terms)} terms")
+                tier_name = "Google Trends Enhanced" if tier_idx == 0 else f"Tier {tier_idx + 1}"
+                logger.info(f"{tier_name}: Searching with {len(search_terms)} terms")
                 
                 for search_term in search_terms:
                     if videos_collected >= target_video_count:
@@ -288,8 +300,43 @@ class TrendingService:
         
         return results
     
+    def _get_google_trends_analysis(self, query: str, country: str, timeframe: str) -> Dict:
+        """Get Google Trends analysis for cross-platform validation."""
+        try:
+            # Get Google Trends score
+            trends_data = google_trends_service.get_trend_score(query, country, timeframe)
+            
+            # Get cross-platform validation
+            validation_data = google_trends_service.validate_query_trending(
+                query, country, youtube_trending=False  # Will be determined later
+            )
+            
+            return {
+                'trend_score': trends_data.get('trend_score', 0.0),
+                'is_trending': trends_data.get('is_trending', False),
+                'peak_interest': trends_data.get('peak_interest', 0),
+                'validation_score': validation_data.get('validation_score', 0.0),
+                'cross_platform_boost': validation_data.get('cross_platform_boost', 0.0),
+                'platform_alignment': validation_data.get('platform_alignment', 'none'),
+                'cache_hit': trends_data.get('cache_hit', False),
+                'error': trends_data.get('error', None)
+            }
+        except Exception as e:
+            logger.error(f"Error getting Google Trends analysis for '{query}': {e}")
+            return {
+                'trend_score': 0.0,
+                'is_trending': False,
+                'peak_interest': 0,
+                'validation_score': 0.0,
+                'cross_platform_boost': 0.0,
+                'platform_alignment': 'none',
+                'cache_hit': False,
+                'error': str(e)
+            }
+    
     def calculate_v7_trending_score(self, video: Dict, country_relevance: float, 
-                                   timeframe: str, is_in_trending_feed: bool = False) -> Dict:
+                                   timeframe: str, is_in_trending_feed: bool = False, 
+                                   google_trends_data: Dict = None) -> Dict:
         """Calculate MOMENTUM MVP trending score for a video."""
         try:
             # Get timeframe in hours
@@ -331,8 +378,17 @@ class TrendingService:
             country_multiplier = 0.5 + (country_relevance * 1.5)  # 0.5-2.0x multiplier
             trending_feed_boost = 1.5 if is_in_trending_feed else 1.0
             
-            # Final trending score
-            final_score = base_momentum * country_multiplier * trending_feed_boost
+            # Google Trends enhancement
+            google_trends_boost = 1.0
+            google_trends_score = 0.0
+            if google_trends_data:
+                google_trends_score = google_trends_data.get('trend_score', 0.0)
+                cross_platform_boost = google_trends_data.get('cross_platform_boost', 0.0)
+                # Apply Google Trends boost: 1.0 to 1.3x based on trends data
+                google_trends_boost = 1.0 + cross_platform_boost
+            
+            # Final trending score with Google Trends
+            final_score = base_momentum * country_multiplier * trending_feed_boost * google_trends_boost
             
             return {
                 'trending_score': final_score,
@@ -340,6 +396,8 @@ class TrendingService:
                 'country_relevance': country_relevance,
                 'country_multiplier': country_multiplier,
                 'trending_boost_applied': is_in_trending_feed,
+                'google_trends_score': google_trends_score,
+                'google_trends_boost': google_trends_boost,
                 'normalized_score': min((final_score / 10000) * 10, 10),  # 0-10 scale
                 'views_per_hour': views_per_hour,
                 'engagement_rate': engagement_rate,
@@ -363,7 +421,8 @@ class TrendingService:
             }
     
     def _calculate_trending_scores(self, videos: List[Dict], llm_results: Dict[str, Dict],
-                                  country: str, timeframe: str, db: Session) -> List[Dict]:
+                                  country: str, timeframe: str, db: Session, 
+                                  google_trends_data: Dict = None) -> List[Dict]:
         """Calculate trending scores for all videos."""
         scored_videos = []
         
@@ -377,9 +436,9 @@ class TrendingService:
             # Check if video is in trending feed
             is_in_trending_feed = video.get('is_in_trending_feed', False)
             
-            # Calculate trending score
+            # Calculate trending score with Google Trends
             score_data = self.calculate_v7_trending_score(
-                video, country_relevance, timeframe, is_in_trending_feed
+                video, country_relevance, timeframe, is_in_trending_feed, google_trends_data
             )
             
             # Combine video data with score data
@@ -431,8 +490,8 @@ class TrendingService:
                 # Get LLM analysis for fallback videos
                 fallback_llm = self._get_country_relevance_analysis(fallback_videos, country, db, query)
                 
-                # Calculate scores for fallback videos
-                fallback_scored = self._calculate_trending_scores(fallback_videos, fallback_llm, country, timeframe, db)
+                # Calculate scores for fallback videos (without Google Trends for fallback)
+                fallback_scored = self._calculate_trending_scores(fallback_videos, fallback_llm, country, timeframe, db, None)
                 
                 # Combine with existing results
                 scored_videos.extend(fallback_scored)

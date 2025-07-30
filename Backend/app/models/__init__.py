@@ -4,6 +4,7 @@ from .country_relevance import CountryRelevance
 from .trending_feed import TrendingFeed
 from .search_cache import SearchCache
 from .training_label import TrainingLabel
+from .google_trends_cache import GoogleTrendsCache
 
 __all__ = [
     "Base",
@@ -11,5 +12,6 @@ __all__ = [
     "CountryRelevance", 
     "TrendingFeed",
     "SearchCache",
-    "TrainingLabel"
+    "TrainingLabel",
+    "GoogleTrendsCache"
 ]

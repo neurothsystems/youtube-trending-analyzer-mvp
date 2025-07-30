@@ -6,7 +6,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine
 from app.models import Base
-from app.api import trending, health, analytics
+from app.api import trending, health, analytics, google_trends
 
 # Import all models to ensure they are registered with Base
 from app.models.video import Video
@@ -15,6 +15,7 @@ from app.models.trending_feed import TrendingFeed
 from app.models.search_cache import SearchCache
 from app.models.training_label import TrainingLabel
 from app.models.llm_usage_log import LLMUsageLog
+from app.models.google_trends_cache import GoogleTrendsCache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -179,6 +180,38 @@ async def lifespan(app: FastAPI):
                         "CREATE INDEX IF NOT EXISTS idx_llm_country ON llm_usage_log (country);",
                         "CREATE INDEX IF NOT EXISTS idx_llm_created_at ON llm_usage_log (created_at);"
                     ]
+                },
+                {
+                    'name': 'google_trends_cache',
+                    'sql': """
+                        CREATE TABLE IF NOT EXISTS google_trends_cache (
+                            id SERIAL PRIMARY KEY,
+                            query VARCHAR(255) NOT NULL,
+                            country VARCHAR(2) NOT NULL,
+                            timeframe VARCHAR(10) NOT NULL,
+                            trend_score FLOAT NOT NULL CHECK (trend_score >= 0.0 AND trend_score <= 1.0),
+                            peak_interest INTEGER NOT NULL CHECK (peak_interest >= 0 AND peak_interest <= 100),
+                            average_interest FLOAT NOT NULL,
+                            recent_interest FLOAT NOT NULL,
+                            is_trending BOOLEAN NOT NULL DEFAULT FALSE,
+                            data_points INTEGER NOT NULL DEFAULT 0,
+                            validation_score FLOAT CHECK (validation_score >= 0.0 AND validation_score <= 1.0),
+                            cross_platform_boost FLOAT CHECK (cross_platform_boost >= 0.0 AND cross_platform_boost <= 0.5),
+                            platform_alignment VARCHAR(20) DEFAULT 'none',
+                            raw_data JSONB,
+                            error_message TEXT,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                            expires_at TIMESTAMP WITH TIME ZONE,
+                            UNIQUE(query, country, timeframe)
+                        );
+                    """,
+                    'indexes': [
+                        "CREATE INDEX IF NOT EXISTS idx_google_trends_query_country ON google_trends_cache (query, country);",
+                        "CREATE INDEX IF NOT EXISTS idx_google_trends_created_at ON google_trends_cache (created_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_google_trends_expires_at ON google_trends_cache (expires_at);",
+                        "CREATE INDEX IF NOT EXISTS idx_google_trends_trending ON google_trends_cache (is_trending, trend_score);",
+                        "CREATE INDEX IF NOT EXISTS idx_google_trends_platform_alignment ON google_trends_cache (platform_alignment, validation_score);"
+                    ]
                 }
             ]
             
@@ -238,7 +271,7 @@ async def lifespan(app: FastAPI):
                 logger.info(f"Final tables in database: {final_table_names}")
                 
                 # Check all required tables
-                required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels", "llm_usage_log"]
+                required_tables = ["videos", "country_relevance", "trending_feeds", "search_cache", "training_labels", "llm_usage_log", "google_trends_cache"]
                 missing_tables = [t for t in required_tables if t not in final_table_names]
                 
                 if not missing_tables:
@@ -358,7 +391,7 @@ app = FastAPI(
     - **Response Examples**: See real API responses with sample data
     - **Parameter Details**: Understand all query parameters and request formats
     """,
-    version="1.1.3-import-fix",
+    version="2.1.0-google-trends-search-enhanced",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -412,6 +445,12 @@ app.include_router(
     tags=["analytics"]
 )
 
+app.include_router(
+    google_trends.router,
+    prefix="/api/mvp/google-trends",
+    tags=["google-trends"]
+)
+
 
 @app.get("/")
 async def root():
@@ -431,7 +470,7 @@ async def root():
     """
     return {
         "message": "🚀 YouTube Trending Analyzer MVP API",
-        "version": "1.1.3-import-fix",
+        "version": "2.0.0-google-trends",
         "status": "operational",
         "interactive_docs": {
             "swagger_ui": "/docs",
@@ -445,7 +484,7 @@ async def root():
             "/api/mvp/trending?query=gaming&country=DE&timeframe=48h"
         ],
         "build_info": {
-            "commit": "import-fix-with-docs",
+            "commit": "google-trends-integration",
             "features": [
                 "origin_country_detection",
                 "multi_tier_search", 
@@ -453,10 +492,12 @@ async def root():
                 "batch_llm_processing",
                 "adaptive_filtering",
                 "interactive_api_docs",
-                "comprehensive_health_monitoring"
+                "comprehensive_health_monitoring",
+                "google_trends_integration",
+                "cross_platform_validation"
             ]
         },
-        "algorithm": "MVP-LLM-Enhanced",
+        "algorithm": "MVP-LLM-GoogleTrends-Enhanced",
         "supported_countries": ["DE", "US", "FR", "JP"],
         "supported_timeframes": ["24h", "48h", "7d"]
     }
@@ -476,7 +517,7 @@ async def api_info():
     return {
         "api_version": "1.1.3-import-fix",
         "build_commit": "import-fix-with-docs",
-        "algorithm": "MVP-LLM-Enhanced",
+        "algorithm": "MVP-LLM-GoogleTrends-Enhanced",
         "llm_provider": "gemini-flash",
         "interactive_testing": {
             "swagger_ui": "/docs",
