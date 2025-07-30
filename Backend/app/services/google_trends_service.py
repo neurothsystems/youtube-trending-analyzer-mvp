@@ -24,8 +24,11 @@ class GoogleTrendsService:
                 backoff_factor=0.1
             )
             logger.info("Google Trends client initialized successfully")
+        except ImportError as e:
+            logger.error(f"pytrends not available: {e}")
+            self.pytrends = None
         except Exception as e:
-            logger.error(f"Failed to initialize Google Trends client: {e}")
+            logger.warning(f"Google Trends client initialization failed, will use fallback: {e}")
             self.pytrends = None
     
     def _is_available(self) -> bool:

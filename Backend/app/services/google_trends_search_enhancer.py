@@ -25,8 +25,11 @@ class GoogleTrendsSearchEnhancer:
                 backoff_factor=0.1
             )
             logger.info("Google Trends Search Enhancer initialized successfully")
+        except ImportError as e:
+            logger.error(f"pytrends not available: {e}")
+            self.pytrends = None
         except Exception as e:
-            logger.error(f"Failed to initialize Google Trends enhancer: {e}")
+            logger.warning(f"Google Trends enhancer initialization failed, will use fallback: {e}")
             self.pytrends = None
     
     def _is_available(self) -> bool:
