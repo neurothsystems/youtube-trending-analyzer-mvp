@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
 import random
 from app.core.config import settings
-from app.core.redis import CacheManager
+from app.core.redis import cache
 from app.services.country_processors import CountryProcessorFactory
 from app.services.robust_google_trends import robust_google_trends
 
@@ -48,7 +48,7 @@ class GoogleTrendsSearchEnhancer:
         
         # Check cache first
         cache_key = self._get_cache_key(query, country, timeframe)
-        cached_terms = CacheManager.cache.get(cache_key)
+        cached_terms = cache.get(cache_key)
         if cached_terms:
             logger.info(f"Retrieved enhanced search terms from cache for '{query}' in {country}")
             return cached_terms
@@ -81,7 +81,7 @@ class GoogleTrendsSearchEnhancer:
             final_terms = unique_terms[:7]
             
             # Cache the results (TTL: 2 hours)
-            CacheManager.cache.set(cache_key, final_terms, ttl=7200)
+            cache.set(cache_key, final_terms, ttl=7200)
             
             logger.info(f"Enhanced search terms for '{query}' in {country}: {final_terms}")
             return final_terms
@@ -178,7 +178,7 @@ class GoogleTrendsSearchEnhancer:
         }
         """
         cache_key = self._get_cache_key(query, country, timeframe)
-        cached_result = CacheManager.cache.get(f"{cache_key}_metadata")
+        cached_result = cache.get(f"{cache_key}_metadata")
         
         if cached_result:
             cached_result['cache_hit'] = True
@@ -231,7 +231,7 @@ class GoogleTrendsSearchEnhancer:
                 result['error'] = str(e)
         
         # Cache the result with metadata
-        CacheManager.cache.set(f"{cache_key}_metadata", result, ttl=7200)
+        cache.set(f"{cache_key}_metadata", result, ttl=7200)
         
         return result
 
