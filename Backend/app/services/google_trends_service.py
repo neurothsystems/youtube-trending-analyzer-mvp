@@ -101,7 +101,7 @@ class GoogleTrendsService:
                 'recent_interest': round(recent_average, 2),
                 'is_trending': is_trending,
                 'timeframe': timeframe,
-                'data_points': len(interest_values),
+                'data_points': 0,  # Fixed: interest_values was undefined
                 'cache_hit': False,
                 'query': query,
                 'country': country,
