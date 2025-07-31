@@ -7,7 +7,8 @@ from app.core.config import settings
 from app.core.database import engine
 from app.models import Base
 from app.api import trending, health, analytics, google_trends
-from app.startup.production_deployment import initialize_production_environment, get_health_check_data
+# Temporarily disabled - import issues with missing dependencies
+# from app.startup.production_deployment import initialize_production_environment, get_health_check_data
 
 # Import all models to ensure they are registered with Base
 from app.models.video import Video
@@ -29,18 +30,20 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'local'}")
     
-    # Initialize production environment and anti-detection systems
-    try:
-        logger.info("Initializing production anti-detection systems...")
-        production_ready = initialize_production_environment()
-        if production_ready:
-            logger.info("✅ Production anti-detection systems initialized successfully")
-        else:
-            logger.warning("⚠️ Production systems initialized with some issues")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize production systems: {e}")
-        if settings.ENVIRONMENT == 'production':
-            raise  # Fail fast in production
+    # Production initialization temporarily disabled due to missing dependencies
+    logger.info("⚠️ Production anti-detection systems disabled - focusing on core functionality")
+    # TODO: Re-enable once all dependencies are available
+    # try:
+    #     logger.info("Initializing production anti-detection systems...")
+    #     production_ready = initialize_production_environment()
+    #     if production_ready:
+    #         logger.info("✅ Production anti-detection systems initialized successfully")
+    #     else:
+    #         logger.warning("⚠️ Production systems initialized with some issues")
+    # except Exception as e:
+    #     logger.error(f"❌ Failed to initialize production systems: {e}")
+    #     if settings.ENVIRONMENT == 'production':
+    #         raise  # Fail fast in production
     
     # Create database tables (skip if they already exist)
     try:
