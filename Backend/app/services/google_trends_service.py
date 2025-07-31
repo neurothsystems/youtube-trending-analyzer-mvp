@@ -4,7 +4,7 @@ from typing import Dict, Optional, List
 from datetime import datetime, timezone, timedelta
 import random
 from app.core.config import settings
-from app.core.redis import CacheManager
+from app.core.redis import cache
 from app.services.robust_google_trends import robust_google_trends
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class GoogleTrendsService:
         
         # Check cache first
         cache_key = self._get_cache_key(query, country, timeframe)
-        cached_result = CacheManager.cache.get(cache_key)
+        cached_result = cache.get(cache_key)
         if cached_result:
             cached_result['cache_hit'] = True
             logger.info(f"Retrieved Google Trends from cache for '{query}' in {country}")
@@ -109,7 +109,7 @@ class GoogleTrendsService:
             }
             
             # Cache the result (TTL: 2 hours for trends data)
-            CacheManager.cache.set(cache_key, result, ttl=7200)
+            cache.set(cache_key, result, ttl=7200)
             
             logger.info(f"Google Trends analysis completed for '{query}' in {country}. "
                        f"Score: {trend_score:.3f}, Peak: {peak_interest}")
