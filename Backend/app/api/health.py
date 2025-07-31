@@ -241,6 +241,74 @@ async def readiness_check(db: Session = Depends(get_db)):
         )
 
 
+@router.get("/youtube-debug")
+async def debug_youtube_api():
+    """
+    Direct YouTube API debug test - bypasses all other logic.
+    
+    Tests actual YouTube search functionality with simple terms.
+    """
+    from app.services.youtube_service import youtube_service
+    from datetime import datetime, timezone, timedelta
+    
+    results = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "tests": []
+    }
+    
+    # Test scenarios
+    test_scenarios = [
+        {"query": "music", "country": "US", "description": "Simple music search in US"},
+        {"query": "gaming", "country": "DE", "description": "Gaming search in Germany"},
+        {"query": "test", "country": "US", "description": "Basic test search"},
+    ]
+    
+    for scenario in test_scenarios:
+        test_result = {
+            "scenario": scenario,
+            "status": "unknown",
+            "videos_found": 0,
+            "sample_titles": [],
+            "error": None,
+            "response_time_ms": 0
+        }
+        
+        try:
+            start_time = datetime.now()
+            
+            # Use 7 days timeframe
+            published_after = datetime.now(timezone.utc) - timedelta(days=7)
+            
+            # Direct YouTube search
+            videos = youtube_service.search_videos(
+                query=scenario["query"],
+                country=scenario["country"], 
+                max_results=10,
+                published_after=published_after
+            )
+            
+            end_time = datetime.now()
+            response_time = (end_time - start_time).total_seconds() * 1000
+            
+            test_result.update({
+                "status": "success" if videos else "no_results",
+                "videos_found": len(videos),
+                "sample_titles": [v.get("title", "No title")[:50] + "..." for v in videos[:3]],
+                "response_time_ms": round(response_time, 2)
+            })
+            
+        except Exception as e:
+            test_result.update({
+                "status": "error",
+                "error": str(e),
+                "response_time_ms": 0
+            })
+        
+        results["tests"].append(test_result)
+    
+    return results
+
+
 @router.get("/health/database")
 async def database_details(db: Session = Depends(get_db)):
     """
