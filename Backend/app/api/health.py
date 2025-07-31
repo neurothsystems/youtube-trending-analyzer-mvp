@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import logging
 from app.core.database import get_db, DatabaseHealthCheck
 from app.core.config import settings
@@ -947,7 +947,7 @@ async def debug_youtube_search():
     """
     try:
         from app.services.youtube_service import youtube_service
-        from datetime import datetime, timezone, timedelta
+        # timedelta already imported at module level
         
         if not youtube_service._is_available():
             return {"error": "YouTube API not available"}
@@ -1157,7 +1157,7 @@ async def debug_trending_service(db: Session = Depends(get_db)):
         from app.services.trending_service import trending_service
         from app.services.country_processors import CountryProcessorFactory
         from app.core.config import get_timeframe_hours
-        from datetime import datetime, timezone, timedelta
+        # timedelta already imported at module level
         
         result = {
             "debug": "trending_service_step_by_step",
