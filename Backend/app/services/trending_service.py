@@ -134,32 +134,52 @@ class TrendingService:
             timeframe_hours = get_timeframe_hours(timeframe)
             published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
             
-            # SIMPLIFIED SEARCH - Start with original query first
-            # Skip Google Trends for now to debug YouTube API issues
+            # ROBUST SEARCH STRATEGY - Original query first, then Google Trends enhancement
+            # This ensures search is never empty and provides enhanced coverage when possible
             
-            # Primary search: Just use the original query
-            tier_1_terms = [query]  # Original search term
-            tier_2_terms = processor.get_category_terms(query)[:3]
-            tier_3_terms = processor.get_generic_trending_terms()[:2]
+            # Tier 1: Always start with original query (guaranteed to work)
+            tier_1_terms = [query]  # Original search term - never fails
             
-            search_tiers = [tier_1_terms, tier_2_terms, tier_3_terms]
-            
-            # Fake enhanced search metadata for now
+            # Tier 2: Try to get Google Trends enhanced terms (fallback-safe)
+            enhanced_terms = []
             enhanced_search_metadata = {
-                'search_terms': tier_1_terms,
-                'source': 'simplified',
+                'search_terms': [query],  # Default to original
+                'source': 'fallback',
                 'web_topic': None,
                 'youtube_queries': [],
                 'cache_hit': False,
-                'error': 'Google Trends disabled for debugging'
+                'error': None
             }
             
+            try:
+                # Attempt Google Trends enhancement
+                trends_metadata = google_trends_search_enhancer.get_search_terms_with_metadata(query, country, timeframe)
+                if trends_metadata and trends_metadata.get('search_terms'):
+                    enhanced_terms = trends_metadata['search_terms'][1:]  # Skip first (original query)
+                    enhanced_search_metadata = trends_metadata
+                    enhanced_search_metadata['source'] = 'google_trends'
+                    logger.info(f"Google Trends enhanced search: {len(enhanced_terms)} additional terms")
+                else:
+                    logger.warning(f"Google Trends returned no enhanced terms for '{query}' in {country}")
+            except Exception as e:
+                logger.warning(f"Google Trends enhancement failed for '{query}': {e}")
+                enhanced_search_metadata['error'] = str(e)
+            
+            # Combine original + enhanced terms for tier 2
+            tier_2_terms = enhanced_terms[:6] if enhanced_terms else []  # Max 6 enhanced terms
+            
+            # Only 2 tiers for now - keep it simple
+            search_tiers = [tier_1_terms, tier_2_terms]
+            
+            # Update metadata for transparency
+            enhanced_search_metadata['search_terms'] = tier_1_terms + tier_2_terms
+            enhanced_search_metadata['google_trends_enhanced'] = len(tier_2_terms) > 0
+            
             # Store search terms for transparency
-            search_terms_used['tier_1_terms'] = tier_1_terms
-            search_terms_used['tier_2_terms'] = tier_2_terms
-            search_terms_used['tier_3_terms'] = tier_3_terms
-            search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms) + len(tier_3_terms)
-            search_terms_used['google_trends_enhanced'] = False  # Disabled for debugging
+            search_terms_used['tier_1_terms'] = tier_1_terms  # Original query
+            search_terms_used['tier_2_terms'] = tier_2_terms  # Google Trends enhanced
+            search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms)
+            search_terms_used['google_trends_enhanced'] = len(tier_2_terms) > 0
             search_terms_used['enhanced_search_metadata'] = enhanced_search_metadata
             
             videos_collected = 0

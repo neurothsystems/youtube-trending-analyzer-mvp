@@ -309,6 +309,91 @@ async def debug_youtube_api():
     return results
 
 
+@router.get("/google-trends-test")
+async def test_google_trends():
+    """
+    Test Google Trends search enhancement directly.
+    
+    Tests if Google Trends returns additional search terms for various queries.
+    """
+    from app.services.google_trends_search_enhancer import google_trends_search_enhancer
+    from datetime import datetime, timezone
+    
+    results = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "tests": []
+    }
+    
+    # Test scenarios
+    test_scenarios = [
+        {"query": "gaming", "country": "DE", "timeframe": "48h"},
+        {"query": "music", "country": "US", "timeframe": "48h"},
+        {"query": "sport", "country": "FR", "timeframe": "7d"},
+    ]
+    
+    for scenario in test_scenarios:
+        test_result = {
+            "scenario": scenario,
+            "status": "unknown",
+            "search_terms": [],
+            "enhanced_terms_count": 0,
+            "google_trends_working": False,
+            "error": None,
+            "response_time_ms": 0
+        }
+        
+        try:
+            start_time = datetime.now()
+            
+            # Test Google Trends search enhancer
+            metadata = google_trends_search_enhancer.get_search_terms_with_metadata(
+                scenario["query"], 
+                scenario["country"], 
+                scenario["timeframe"]
+            )
+            
+            end_time = datetime.now()
+            response_time = (end_time - start_time).total_seconds() * 1000
+            
+            if metadata and metadata.get('search_terms'):
+                search_terms = metadata['search_terms']
+                enhanced_count = len(search_terms) - 1 if len(search_terms) > 1 else 0  # Exclude original
+                
+                test_result.update({
+                    "status": "success",
+                    "search_terms": search_terms,
+                    "enhanced_terms_count": enhanced_count,
+                    "google_trends_working": enhanced_count > 0,
+                    "source": metadata.get('source', 'unknown'),
+                    "web_topic": metadata.get('web_topic'),
+                    "youtube_queries": metadata.get('youtube_queries', []),
+                    "cache_hit": metadata.get('cache_hit', False),
+                    "response_time_ms": round(response_time, 2)
+                })
+            else:
+                test_result.update({
+                    "status": "no_results",
+                    "search_terms": [scenario["query"]],  # Only original
+                    "enhanced_terms_count": 0,
+                    "google_trends_working": False,
+                    "response_time_ms": round(response_time, 2)
+                })
+                
+        except Exception as e:
+            test_result.update({
+                "status": "error",
+                "error": str(e),
+                "search_terms": [scenario["query"]],  # Fallback to original
+                "enhanced_terms_count": 0,
+                "google_trends_working": False,
+                "response_time_ms": 0
+            })
+        
+        results["tests"].append(test_result)
+    
+    return results
+
+
 @router.get("/health/database")
 async def database_details(db: Session = Depends(get_db)):
     """
