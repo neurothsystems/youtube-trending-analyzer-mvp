@@ -457,8 +457,8 @@ class TrendingService:
         if not scored_videos:
             return []
         
-        # Define threshold levels (from strict to lenient)
-        threshold_levels = [0.7, 0.5, 0.3, 0.2, 0.1, 0.0]
+        # Define threshold levels - adjusted for real-world relevance scores (avg ~0.1)
+        threshold_levels = [0.4, 0.25, 0.15, 0.1, 0.05, 0.0]
         
         for threshold in threshold_levels:
             # Filter videos by current threshold
