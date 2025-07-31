@@ -64,6 +64,9 @@ class TrendingService:
             # Step 7: Prepare response with metadata
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
             
+            # Ensure search_terms_used is properly structured for visibility
+            search_terms_info = transparency_data.get('search_terms_used', {})
+            
             result = {
                 "success": True,
                 "query": query,
@@ -79,8 +82,13 @@ class TrendingService:
                     "trending_feed_matches": self._count_trending_matches(final_results),
                     "llm_cost_cents": round(llm_service.daily_cost * 100, 2) if llm_service else 0,
                     "google_trends": google_trends_data,
-                    "search_terms_used": transparency_data.get('search_terms_used', {}),
-                    "collection_stats": transparency_data.get('collection_stats', {})
+                    "search_terms_used": search_terms_info,
+                    "collection_stats": transparency_data.get('collection_stats', {}),
+                    # Add explicit breakdown for debugging
+                    "google_trends_enhanced": search_terms_info.get('google_trends_enhanced', False),
+                    "tier_1_count": len(search_terms_info.get('tier_1_terms', [])),
+                    "tier_2_count": len(search_terms_info.get('tier_2_terms', [])),
+                    "total_search_terms": search_terms_info.get('total_search_terms', 0)
                 }
             }
             
@@ -181,6 +189,11 @@ class TrendingService:
             search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms)
             search_terms_used['google_trends_enhanced'] = len(tier_2_terms) > 0
             search_terms_used['enhanced_search_metadata'] = enhanced_search_metadata
+            
+            # Debug logging for Google Trends terms visibility
+            logger.info(f"Search terms transparency: T1={len(tier_1_terms)} terms {tier_1_terms}, "
+                       f"T2={len(tier_2_terms)} terms {tier_2_terms[:3] if tier_2_terms else []}, "
+                       f"Enhanced={search_terms_used['google_trends_enhanced']}")
             
             videos_collected = 0
             
