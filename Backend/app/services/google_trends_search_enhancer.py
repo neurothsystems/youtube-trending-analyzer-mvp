@@ -43,8 +43,8 @@ class GoogleTrendsSearchEnhancer:
         Returns: Maximum 7 search terms (1 + 1 + 5)
         """
         if not self._is_available():
-            logger.warning("Google Trends not available, falling back to country processors")
-            return self._fallback_search_terms(query, country)
+            logger.warning("Google Trends not available, using original query only (no fallback)")
+            return [query]  # Return only original query as per user requirement
         
         # Check cache first
         cache_key = self._get_cache_key(query, country, timeframe)
@@ -88,7 +88,7 @@ class GoogleTrendsSearchEnhancer:
             
         except Exception as e:
             logger.error(f"Error getting enhanced search terms for '{query}': {e}")
-            return self._fallback_search_terms(query, country)
+            return [query]  # No fallback - only original query
     
     def _get_top_web_topic(self, query: str, country: str, timeframe: str) -> Optional[str]:
         """Get top related topic from web search using robust wrapper."""
@@ -161,17 +161,7 @@ class GoogleTrendsSearchEnhancer:
             logger.warning(f"Error getting YouTube queries for '{query}': {e}")
             return []
     
-    def _fallback_search_terms(self, query: str, country: str) -> List[str]:
-        """Fallback to country processors when Google Trends fails."""
-        try:
-            processor = CountryProcessorFactory.get_processor(country)
-            fallback_terms = processor.get_local_search_terms(query)
-            logger.info(f"Using fallback search terms for '{query}' in {country}: {fallback_terms}")
-            return fallback_terms[:7]  # Limit to 7 terms for consistency
-        except Exception as e:
-            logger.error(f"Error in fallback search terms: {e}")
-            # Ultimate fallback: just return the original query
-            return [query]
+    # Fallback method removed as per user requirement - no fallbacks, only original query
     
     def get_search_terms_with_metadata(self, query: str, country: str, timeframe: str = '7d') -> Dict:
         """
@@ -205,7 +195,7 @@ class GoogleTrendsSearchEnhancer:
         
         if not self._is_available():
             result['source'] = 'fallback'
-            result['search_terms'] = self._fallback_search_terms(query, country)
+            result['search_terms'] = [query]  # No fallback - only original query
             result['error'] = 'Google Trends not available'
         else:
             try:
@@ -237,7 +227,7 @@ class GoogleTrendsSearchEnhancer:
             except Exception as e:
                 logger.error(f"Error in enhanced search with metadata: {e}")
                 result['source'] = 'fallback'
-                result['search_terms'] = self._fallback_search_terms(query, country)
+                result['search_terms'] = [query]  # No fallback - only original query
                 result['error'] = str(e)
         
         # Cache the result with metadata

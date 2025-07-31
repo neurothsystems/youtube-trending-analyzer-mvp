@@ -36,7 +36,7 @@ from cachetools import TTLCache, LRUCache
 
 # Local imports
 from app.core.config import settings
-from app.core.redis import cache
+from app.core.redis import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ class MultiLayerCache:
     
     def __init__(self):
         # Layer 1: Redis (primary)
-        self.redis_cache = cache
+        self.redis_cache = CacheManager.cache
         
         # Layer 2: In-memory LRU cache (secondary)
         self.memory_cache = LRUCache(maxsize=1000)
