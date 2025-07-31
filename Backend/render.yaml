@@ -74,11 +74,11 @@ services:
       - key: LLM_ANALYSIS_INTERVAL
         value: "6"  # hours
       
-      # YouTube API Limits
+      # YouTube API Limits - Increased for better analysis
       - key: YOUTUBE_MAX_RESULTS
-        value: "50"
+        value: "200"
       - key: YOUTUBE_MAX_COMMENTS
-        value: "50"
+        value: "200"
       
       # Performance Settings
       - key: MAX_RESPONSE_TIME

@@ -460,23 +460,35 @@ class TrendingService:
         # Define threshold levels - adjusted for real-world relevance scores (avg ~0.1)
         threshold_levels = [0.4, 0.25, 0.15, 0.1, 0.05, 0.0]
         
-        for threshold in threshold_levels:
-            # Filter videos by current threshold
-            filtered = [
-                video for video in scored_videos 
-                if video.get('country_relevance', 0.0) >= threshold
-            ]
-            
-            logger.info(f"Threshold {threshold}: {len(filtered)} videos (target: {limit})")
-            
-            # If we have enough results, use this threshold
-            if len(filtered) >= limit:
-                return filtered[:limit * 2]  # Return slightly more for ranking flexibility
-            
-            # If we have some results but not enough, continue to next threshold
-            # but keep these as backup
-            if len(filtered) > 0:
-                backup_results = filtered
+        # TEMPORARILY DISABLED: Show all videos with their relevance scores for evaluation
+        # User can see the actual relevance distribution and make informed decisions
+        
+        logger.info(f"FILTER DISABLED: Showing all {len(scored_videos)} videos for relevance evaluation")
+        
+        # Sort by trending_score (highest first) but show all videos
+        sorted_videos = sorted(scored_videos, key=lambda x: x.get('trending_score', 0), reverse=True)
+        
+        # Return all videos (up to reasonable limit for performance)
+        return sorted_videos[:limit * 4]  # Show more videos for evaluation
+        
+        # ORIGINAL FILTERING CODE (COMMENTED OUT):
+        # for threshold in threshold_levels:
+        #     # Filter videos by current threshold
+        #     filtered = [
+        #         video for video in scored_videos 
+        #         if video.get('country_relevance', 0.0) >= threshold
+        #     ]
+        #     
+        #     logger.info(f"Threshold {threshold}: {len(filtered)} videos (target: {limit})")
+        #     
+        #     # If we have enough results, use this threshold
+        #     if len(filtered) >= limit:
+        #         return filtered[:limit * 2]  # Return slightly more for ranking flexibility
+        #     
+        #     # If we have some results but not enough, continue to next threshold
+        #     # but keep these as backup
+        #     if len(filtered) > 0:
+        #         backup_results = filtered
         
         # If still not enough results with any threshold, implement fallback strategy
         if len(scored_videos) < limit:

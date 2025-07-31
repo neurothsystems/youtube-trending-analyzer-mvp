@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     TRENDING_CRAWL_INTERVAL: int = 2  # hours
     LLM_ANALYSIS_INTERVAL: int = 6    # hours
     
-    # YouTube API Configuration
-    YOUTUBE_MAX_RESULTS: int = 50
-    YOUTUBE_MAX_COMMENTS: int = 50
+    # YouTube API Configuration - Increased for better analysis
+    YOUTUBE_MAX_RESULTS: int = 200
+    YOUTUBE_MAX_COMMENTS: int = 200
     
     # Supported Countries
     SUPPORTED_COUNTRIES: List[str] = ["DE", "US", "FR", "JP"]
