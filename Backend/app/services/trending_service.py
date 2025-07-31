@@ -224,22 +224,30 @@ class TrendingService:
                     
                     logger.info(f"  '{search_term}': {len(videos)} videos (total: {videos_collected})")
             
-            # Always include trending feed videos for context
+            # Include trending feed videos ONLY if relevant to search query
             trending_videos = youtube_service.get_trending_videos(country, max_results=50)
             
-            # Filter trending videos by timeframe
+            # Filter trending videos by timeframe AND search relevance
             filtered_trending = []
             for video in trending_videos:
+                # First check timeframe
                 if video.get('upload_date'):
                     upload_date = video['upload_date']
                     if isinstance(upload_date, str):
                         upload_date = datetime.fromisoformat(upload_date.replace('Z', '+00:00'))
                     
                     if upload_date >= published_after:
-                        filtered_trending.append(video)
+                        # Then check if video is relevant to search query
+                        if self._is_video_relevant_to_query(video, query, tier_1_terms + tier_2_terms):
+                            filtered_trending.append(video)
             
             all_videos.extend(filtered_trending)
             collection_stats['videos_from_trending_feed'] = len(filtered_trending)
+            
+            # Log trending feed filtering results
+            total_trending = len(trending_videos)
+            relevant_trending = len(filtered_trending)
+            logger.info(f"Trending Feed Filter: {relevant_trending}/{total_trending} videos relevant to query '{query}'")
             
             # Remove duplicates and prioritize variety
             unique_videos = {}
@@ -285,6 +293,53 @@ class TrendingService:
         except Exception as e:
             logger.error(f"Error collecting videos: {e}")
             return [], {'search_terms_used': search_terms_used, 'collection_stats': collection_stats}
+    
+    def _is_video_relevant_to_query(self, video: Dict, original_query: str, search_terms: List[str]) -> bool:
+        """Check if a trending video is relevant to the search query."""
+        try:
+            # Get video title and description for relevance check
+            title = video.get('title', '').lower()
+            description = video.get('description', '').lower()
+            channel_name = video.get('channel_name', '').lower()
+            
+            # Check if any search term appears in title, description or channel
+            for term in search_terms:
+                term_lower = term.lower()
+                
+                # Direct match in title (highest relevance)
+                if term_lower in title:
+                    logger.debug(f"Video '{video.get('title', '')[:50]}...' matches search term '{term}' in title")
+                    return True
+                
+                # Match in description (medium relevance)
+                if term_lower in description:
+                    logger.debug(f"Video '{video.get('title', '')[:50]}...' matches search term '{term}' in description")
+                    return True
+                
+                # Match in channel name (lower relevance but still valid)
+                if term_lower in channel_name:
+                    logger.debug(f"Video '{video.get('title', '')[:50]}...' matches search term '{term}' in channel")
+                    return True
+            
+            # Additional check: word-level matching for better accuracy
+            title_words = set(title.split())
+            description_words = set(description[:500].split())  # First 500 chars only for performance
+            
+            for term in search_terms:
+                term_words = set(term.lower().split())
+                
+                # Check if all words of the search term appear in title or description
+                if term_words.issubset(title_words) or term_words.issubset(description_words):
+                    logger.debug(f"Video '{video.get('title', '')[:50]}...' has word-level match for '{term}'")
+                    return True
+            
+            logger.debug(f"Video '{video.get('title', '')[:50]}...' NOT relevant to search terms {search_terms[:3]}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking video relevance: {e}")
+            # If error, err on the side of inclusion to avoid losing potentially relevant videos
+            return True
     
     def _get_country_relevance_analysis(self, videos: List[Dict], country: str, 
                                        db: Session, query: str = None) -> Dict[str, Dict]:
@@ -419,7 +474,15 @@ class TrendingService:
             
             # MVP enhancements
             country_multiplier = 0.5 + (country_relevance * 1.5)  # 0.5-2.0x multiplier
-            trending_feed_boost = 1.5 if is_in_trending_feed else 1.0
+            
+            # Trending boost only for highly relevant videos
+            # Now that trending videos are pre-filtered for relevance, 
+            # we can give them a boost, but scaled by country relevance
+            if is_in_trending_feed:
+                # Scale trending boost by country relevance: 1.1x to 1.5x
+                trending_feed_boost = 1.1 + (country_relevance * 0.4)  # 1.1-1.5x based on relevance
+            else:
+                trending_feed_boost = 1.0
             
             # Google Trends enhancement
             google_trends_boost = 1.0
@@ -478,6 +541,16 @@ class TrendingService:
             
             # Check if video is in trending feed
             is_in_trending_feed = video.get('is_in_trending_feed', False)
+            
+            # Boost country relevance for trending feed videos (they're proven trends in that country)
+            if is_in_trending_feed:
+                original_relevance = country_relevance
+                # Minimum 0.7 relevance for trending videos, or use LLM score if higher
+                country_relevance = max(country_relevance, 0.7)
+                if country_relevance > original_relevance:
+                    logger.debug(f"Trending video {video_id}: Country relevance boosted from {original_relevance:.2f} to {country_relevance:.2f}")
+                else:
+                    logger.debug(f"Trending video {video_id}: Country relevance kept at LLM score {country_relevance:.2f}")
             
             # Calculate trending score with Google Trends
             score_data = self.calculate_v7_trending_score(
