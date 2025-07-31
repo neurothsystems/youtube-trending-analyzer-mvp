@@ -134,22 +134,32 @@ class TrendingService:
             timeframe_hours = get_timeframe_hours(timeframe)
             published_after = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
             
-            # Enhanced search strategy using Google Trends
-            enhanced_search_metadata = google_trends_search_enhancer.get_search_terms_with_metadata(query, country, timeframe)
-            enhanced_terms = enhanced_search_metadata['search_terms']
+            # SIMPLIFIED SEARCH - Start with original query first
+            # Skip Google Trends for now to debug YouTube API issues
             
-            # Fallback to country processors for additional terms if needed
+            # Primary search: Just use the original query
+            tier_1_terms = [query]  # Original search term
             tier_2_terms = processor.get_category_terms(query)[:3]
             tier_3_terms = processor.get_generic_trending_terms()[:2]
             
-            search_tiers = [enhanced_terms[:7], tier_2_terms, tier_3_terms]
+            search_tiers = [tier_1_terms, tier_2_terms, tier_3_terms]
+            
+            # Fake enhanced search metadata for now
+            enhanced_search_metadata = {
+                'search_terms': tier_1_terms,
+                'source': 'simplified',
+                'web_topic': None,
+                'youtube_queries': [],
+                'cache_hit': False,
+                'error': 'Google Trends disabled for debugging'
+            }
             
             # Store search terms for transparency
-            search_terms_used['tier_1_terms'] = enhanced_terms[:7]
+            search_terms_used['tier_1_terms'] = tier_1_terms
             search_terms_used['tier_2_terms'] = tier_2_terms
             search_terms_used['tier_3_terms'] = tier_3_terms
-            search_terms_used['total_search_terms'] = len(enhanced_terms[:7]) + len(tier_2_terms) + len(tier_3_terms)
-            search_terms_used['google_trends_enhanced'] = True
+            search_terms_used['total_search_terms'] = len(tier_1_terms) + len(tier_2_terms) + len(tier_3_terms)
+            search_terms_used['google_trends_enhanced'] = False  # Disabled for debugging
             search_terms_used['enhanced_search_metadata'] = enhanced_search_metadata
             
             videos_collected = 0
